@@ -16,19 +16,21 @@ namespace thread_pool {
 
 	class ThreadPool {
 	public:
-		explicit ThreadPool(const size_t& thread_count = (std::thread::hardware_concurrency() - 1));
+		explicit ThreadPool(const size_t& max_threads);
 
 		template<class Func, typename... Args>
-		auto submitTask(Func&& func, Args&&... args)
-			->std::future<typename std::result_of<Func(Args...)>::type>;
-
-		bool isClosed();
+		decltype(auto) submitTask(Func&& func, Args&&... args);
+		void pause();
+		void restart();
 		void close();
+		bool isClosed() const;
 		~ThreadPool();
 	protected:
 		void _scheduler();
+		void _launchNew();
 	private:
 		static size_t core_thread_count;
+		size_t max_thread_count;
 		// thread-manager
 		std::vector<std::thread> threads;
 		std::queue<std::function<void()>> tasks;
@@ -39,23 +41,24 @@ namespace thread_pool {
 
 
 	template<class Func, typename... Args>
-	inline auto ThreadPool::submitTask(Func&& func, Args&&...args)
-		-> std::future<typename std::result_of<Func(Args...)>::type>
+	inline decltype(auto)
+		ThreadPool::submitTask(Func&& func, Args&&...args)
 	{
 		using return_type = typename std::result_of<Func(Args...)>::type;
 
-		auto task = std::make_shared <std::packaged_task<return_type()>>(
-			[func = std::forward<Func>(func), args = std::forward<Args>(args)...]()
-			->return_type{
-			return func(args...);
+		auto task = std::make_shared<std::packaged_task<return_type()>>(
+			[=]()
+			->return_type {
+			return func(std::forward<Args>(args)...);
 		}
 		);
+
 		auto fut = task->get_future();
 		{
 			std::lock_guard<std::mutex> lock(this->queue_mtx);
-			tasks.emplace_back([=]() {
+			tasks.emplace([=]() {
 				(*task)();
-			})
+			});
 		}
 		return fut;
 	}
