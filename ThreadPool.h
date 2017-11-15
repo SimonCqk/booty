@@ -18,7 +18,7 @@ namespace thread_pool {
 	public:
 		explicit ThreadPool(const size_t& thread_count = (std::thread::hardware_concurrency() - 1));
 
-		template<class Func,typename... Args>
+		template<class Func, typename... Args>
 		auto submitTask(Func&& func, Args&&... args)
 			->std::future<typename std::result_of<Func(Args...)>::type>;
 
@@ -28,28 +28,29 @@ namespace thread_pool {
 	protected:
 		void _scheduler();
 	private:
+		static size_t core_thread_count;
 		// thread-manager
 		std::vector<std::thread> threads;
 		std::queue<std::function<void()>> tasks;
 		std::mutex queue_mtx;
 		std::condition_variable cond_var;
-		size_t core_thread_count;
 		bool closed;
 	};
 
 
-	template<class Func, typename ...Args>
-	inline auto ThreadPool::submitTask(Func&& func, Args&&...args) 
+	template<class Func, typename... Args>
+	inline auto ThreadPool::submitTask(Func&& func, Args&&...args)
 		-> std::future<typename std::result_of<Func(Args...)>::type>
 	{
 		using return_type = typename std::result_of<Func(Args...)>::type;
-		auto task = std::make_shared <std::packaged_task<return_type()>>{
-			   [func = std::forward<Func>(func), args = std::forward<Args>(args)...]()->return_type{
-        			  return_type res=func(args...);
-		              return res;
-			}
-		};
-		auto fut = task -> get_future();
+
+		auto task = std::make_shared <std::packaged_task<return_type()>>(
+			[func = std::forward<Func>(func), args = std::forward<Args>(args)...]()
+			->return_type{
+			return func(args...);
+		}
+		);
+		auto fut = task->get_future();
 		{
 			std::lock_guard<std::mutex> lock(this->queue_mtx);
 			tasks.emplace_back([=]() {
@@ -60,4 +61,5 @@ namespace thread_pool {
 	}
 
 }
+
 #endif // !_THREAD_POOL_H

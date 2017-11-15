@@ -28,6 +28,11 @@ thread_pool::ThreadPool::ThreadPool(const size_t & thread_count = (std::thread::
 	scheduler.detach();
 }
 
+bool thread_pool::ThreadPool::isClosed()
+{
+	return this->closed;
+}
+
 void thread_pool::ThreadPool::close()
 {
 	if (!closed) {
