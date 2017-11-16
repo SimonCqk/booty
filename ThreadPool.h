@@ -8,6 +8,7 @@
 #include<condition_variable>
 #include<vector>
 #include<queue>
+#include<tuple>
 #include<functional>
 #include<utility>
 #include<memory>
@@ -47,9 +48,9 @@ namespace thread_pool {
 		using return_type = typename std::result_of<Func(Args...)>::type;
 
 		auto task = std::make_shared<std::packaged_task<return_type()>>(
-			[=]()
-			->return_type {
-			return func(std::forward<Args>(args)...);
+			[func=std::forward<Func>(func),args=std::forward_as_tuple(std::forward<Args>(args)...)]()
+			->return_type{
+			return std::apply(func, args);
 		}
 		);
 
