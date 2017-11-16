@@ -12,17 +12,17 @@ int main()
 	using namespace std::chrono;
 	auto start1 = system_clock::now();
 	std::vector<int> answers;
+	std::vector<std::thread> threads;
 	for (int i = 0; i < 1000; ++i) {
-		std::thread th([i,&answers] {
+		threads.emplace_back([i,&answers] {
 			std::cout << " process... " << i;
-			std::this_thread::sleep_for(100ms);
+			std::this_thread::sleep_for(1s);
 			std::cout << " still process... " << i;
 			answers.push_back(i*i);
 		});
-		th.join();
 	}
-	for (auto& ans : answers) {
-		std::cout << ans << ' ';
+	for (auto& thread : threads) {
+		thread.join();
 	}
 	auto end1 = system_clock::now();
 	auto start2= system_clock::now();
