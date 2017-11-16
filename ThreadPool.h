@@ -34,8 +34,10 @@ namespace thread_pool {
 		size_t max_thread_count;
 		// thread-manager
 		std::vector<std::thread> threads;
+		// tasks-queue
 		std::queue<std::function<void()>> tasks;
-		std::mutex queue_mtx;
+		// for synchronization
+		std::mutex block_mtx;
 		std::condition_variable cond_var;
 		bool closed;
 	};
@@ -45,19 +47,20 @@ namespace thread_pool {
 	inline decltype(auto)
 		ThreadPool::submitTask(Func&& func, Args&&...args)
 	{
+
 		using return_type = typename std::result_of<Func(Args...)>::type;
 
 		auto task = std::make_shared<std::packaged_task<return_type()>>(
-			[func=std::forward<Func>(func),args=std::make_tuple(std::forward<Args>(args)...)]()
-			->return_type{
+			[func = std::forward<Func>(func),
+			args = std::make_tuple(std::forward<Args>(args)...)]()->return_type{
 			return std::apply(func, args);
 		}
 		);
 
 		auto fut = task->get_future();
 		{
-			std::lock_guard<std::mutex> lock(this->queue_mtx);
-			tasks.emplace([=]() {
+			std::lock_guard<std::mutex> lock(this->block_mtx);
+			tasks.emplace([=]() {  // `=` mode instead of `&` to avoid ref-dangle.
 				(*task)();
 			});
 		}

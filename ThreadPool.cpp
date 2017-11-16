@@ -15,7 +15,7 @@ thread_pool::ThreadPool::ThreadPool(const size_t & max_threads)
 		max_thread_count = core_thread_count;
 		t_count = max_threads;
 	}
-	// launch core-thread-count threads firstly.
+	// launch some threads firstly.
 	for (size_t i = 0; i < t_count; ++i) {
 		_launchNew();
 	}
@@ -33,10 +33,10 @@ void thread_pool::ThreadPool::close()
 {
 	if (!closed) {
 		{
-			std::lock_guard<std::mutex> lock(this->queue_mtx);
+			std::lock_guard<std::mutex> lock(this->block_mtx);
 			closed = true;
 		}
-		cond_var.notify_all();
+		cond_var.notify_all();  // notify all threads to trigger `return`.
 		for (auto& thread : threads)
 			if (thread.joinable())
 				thread.join();
@@ -45,14 +45,7 @@ void thread_pool::ThreadPool::close()
 
 thread_pool::ThreadPool::~ThreadPool()
 {
-	{
-		std::lock_guard<std::mutex> lock(this->queue_mtx);
-		closed = true;
-	}
-	cond_var.notify_all();
-	for (auto& thread : threads)
-		if (thread.joinable())
-			thread.join();
+	close();
 }
 
 void thread_pool::ThreadPool::_scheduler()
@@ -78,16 +71,16 @@ void thread_pool::ThreadPool::_launchNew()
 			while (true) {
 				std::function<void()> task;
 				{
-					std::unique_lock<std::mutex> lock(this->queue_mtx);
+					std::unique_lock<std::mutex> lock(this->block_mtx);
 					cond_var.wait(lock, [this] {
-						return this->closed || !this->tasks.empty();
+						return this->closed || !this->tasks.empty();  // trigger when close or new task comes.
 					});
 					if (this->closed)  // exit when close.
 						return;
 					task = std::move(this->tasks.front());
 					this->tasks.pop();
 				}
-				task();
+				task();  // execute task.
 			}
 		}
 		);
