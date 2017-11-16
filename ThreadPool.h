@@ -48,7 +48,7 @@ namespace thread_pool {
 		using return_type = typename std::result_of<Func(Args...)>::type;
 
 		auto task = std::make_shared<std::packaged_task<return_type()>>(
-			[func=std::forward<Func>(func),args=std::forward_as_tuple(std::forward<Args>(args)...)]()
+			[func=std::forward<Func>(func),args=std::make_tuple(std::forward<Args>(args)...)]()
 			->return_type{
 			return std::apply(func, args);
 		}
