@@ -4,7 +4,7 @@
 size_t thread_pool::ThreadPool::core_thread_count = std::thread::hardware_concurrency() - 1;
 
 thread_pool::ThreadPool::ThreadPool(const size_t & max_threads)
-	: closed(false), max_thread_count(max_threads)
+	: closed(false), paused(false), max_thread_count(max_threads)
 {
 	if (max_threads <= 0) {
 		max_thread_count = core_thread_count;
@@ -29,11 +29,29 @@ bool thread_pool::ThreadPool::isClosed() const
 	return this->closed;
 }
 
+void thread_pool::ThreadPool::pause()
+{
+	std::mutex mtx;
+	std::lock_guard<std::mutex> lock(mtx);
+	paused = true;
+}
+
+void thread_pool::ThreadPool::unpause()
+{
+	{
+		std::mutex mtx;
+		std::lock_guard<std::mutex> lock(mtx);
+		paused = false;
+	}
+	cond_var.notify_all();
+}
+
 void thread_pool::ThreadPool::close()
 {
 	if (!closed) {
 		{
-			std::lock_guard<std::mutex> lock(this->block_mtx);
+			std::mutex mtx;
+			std::lock_guard<std::mutex> lock(mtx);
 			closed = true;
 		}
 		cond_var.notify_all();  // notify all threads to trigger `return`.
@@ -69,9 +87,15 @@ void thread_pool::ThreadPool::_launchNew()
 	if (threads.size() < max_thread_count) {
 		threads.emplace_back([this] {
 			while (true) {
+				if (this->paused) {
+					std::unique_lock<std::mutex> pause_lock(this->pause_mtx);
+					cond_var.wait(pause_lock, [this] {
+						return !this->paused;
+					});
+				}
 				std::function<void()> task;
 				{
-					std::unique_lock<std::mutex> lock(this->block_mtx);
+					std::unique_lock<std::mutex> lock(this->queue_mtx);
 					cond_var.wait(lock, [this] {
 						return this->closed || !this->tasks.empty();  // trigger when close or new task comes.
 					});

@@ -22,7 +22,7 @@ namespace thread_pool {
 		template<class Func, typename... Args>
 		decltype(auto) submitTask(Func&& func, Args&&... args);
 		void pause();
-		void restart();
+		void unpause();
 		void close();
 		bool isClosed() const;
 		~ThreadPool();
@@ -37,8 +37,10 @@ namespace thread_pool {
 		// tasks-queue
 		std::queue<std::function<void()>> tasks;
 		// for synchronization
-		std::mutex block_mtx;
+		std::mutex queue_mtx;
+		std::mutex pause_mtx;
 		std::condition_variable cond_var;
+		bool paused;
 		bool closed;
 	};
 
@@ -65,14 +67,13 @@ namespace thread_pool {
 
 		auto fut = task->get_future();
 		{
-			std::lock_guard<std::mutex> lock(this->block_mtx);
+			std::lock_guard<std::mutex> lock(this->queue_mtx);
 			tasks.emplace([=]() {  // `=` mode instead of `&` to avoid ref-dangle.
 				(*task)();
 			});
 		}
 		return fut;
 	}
-
 }
 
 #endif // !_THREAD_POOL_H
