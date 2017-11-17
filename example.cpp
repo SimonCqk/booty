@@ -13,11 +13,10 @@ int main()
 	auto start1 = system_clock::now();
 	std::vector<int> answers;
 	std::vector<std::thread> threads;
-	for (int i = 0; i < 1000; ++i) {
+	for (int i = 0; i < 3000; ++i) {
 		threads.emplace_back([i,&answers] {
 			std::cout << " process... " << i;
-			std::this_thread::sleep_for(1s);
-			std::cout << " still process... " << i;
+			for (int j = 0; j < 100; ++j);
 			answers.push_back(i*i);
 		});
 	}
@@ -28,21 +27,19 @@ int main()
 	auto start2= system_clock::now();
 	ThreadPool pool(10);
 	std::vector< std::future<int> > results;
-	for (int i = 0; i < 1000; ++i) {
+	for (int i = 0; i < 3000; ++i) {
 		results.emplace_back(
 			pool.submitTask([i] {
 			std::cout << " process... " << i;
-			std::this_thread::sleep_for(100ms);
-			std::cout << " still process... " << i;
+			for (int j = 0; j < 100; ++j);
 			return i*i;
 		})
 		);
 	}
 	for (auto && result : results)
 		std::cout << result.get() << ' ';
-	std::cout << std::endl;
 	auto end2=system_clock::now();
-    
+	std::cout << std::endl;
 	auto dur1 = duration_cast<microseconds>(end1 - start1);
 	auto dur2 = duration_cast<microseconds>(end2 - start2);
 	std::cout << "Test one took "
@@ -51,5 +48,6 @@ int main()
 	std::cout << "Test two took "
 		<< double(dur2.count()) * microseconds::period::num / microseconds::period::den
 		<< "s" << std::endl;
+    
 	return 0;
 }
