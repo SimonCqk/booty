@@ -67,6 +67,8 @@ namespace thread_pool {
 		auto fut = task->get_future();
 		{
 			std::lock_guard<std::mutex> lock(this->queue_mtx);
+			if (this->closed || this->paused)
+				throw std::runtime_error("Do not allow executing tasks after closed or paused.");
 			tasks.emplace([=]() {  // `=` mode instead of `&` to avoid ref-dangle.
 				(*task)();
 			});

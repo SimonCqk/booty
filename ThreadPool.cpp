@@ -1,5 +1,4 @@
 #include "ThreadPool.h"
-#include<exception>
 
 size_t thread_pool::ThreadPool::core_thread_count = std::thread::hardware_concurrency() - 1;
 
@@ -8,7 +7,7 @@ thread_pool::ThreadPool::ThreadPool(const size_t & max_threads)
 {
 	if (max_threads <= 0) {
 		max_thread_count = core_thread_count;
-		throw std::exception("Invalid thread-number passed in.");
+		throw std::runtime_error("Invalid thread-number passed in.");
 	}
 	size_t t_count = core_thread_count;
 	if (max_threads < core_thread_count) {
@@ -70,6 +69,13 @@ void thread_pool::ThreadPool::_scheduler()
 {
 	// find new task and notify one free thread to execute.
 	while (!this->closed) {  // auto-exit when close.
+		if (this->paused) {
+			std::unique_lock<std::mutex> pause_lock(this->pause_mtx);
+			cond_var.wait(pause_lock, [this] {
+				return !this->paused;
+			});
+		}
+
 		if (tasks.empty() ||
 			tasks.size() > max_thread_count)  // if tasks-size > max_threads , just loop for waiting.
 			continue;
