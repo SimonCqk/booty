@@ -3,7 +3,7 @@
 > This is a tiny thread pool embraced by C++11/14/17 features. So a c++17-supported complier is required for compling. Enable new features by add `-std=c++17 (g++/clang++)` or `/std:c++17 (vc++)`.
 
 ### Create Thread Pool Object
-You can pass a specific interger to the ctor.
+You can pass a specific interger to the ctor to specify the maximum working threads.
 ```cpp
 ThreadPool pool(10);
 ```
