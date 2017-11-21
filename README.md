@@ -7,7 +7,7 @@ You can pass a specific interger to the ctor to specify the maximum working thre
 ```cpp
 ThreadPool pool(10);
 ```
-Firstly, the pool will launch `core_thread_count` threads running and waiting for tasks, if it can not meet the demand , other new threads will be launched until it reaches `max_thread_count`  .
+Firstly, the pool will launch `core_thread_count` threads running and waiting for tasks, if it can not meet the demand , other new threads will be launched until it reaches `max_thread_count`.
 
 <br>
 
@@ -28,7 +28,7 @@ pool.submitTask([=]{
 <br>
 
 ### Get the result
-If you need get the results of your task, call `.get()` on the obj returned by `.submitTask()`.<br>
+If you need get the results of your task, call `.get()` on the obj returned by `.submitTask()`( It's a std::future obj actually ).<br>
 ```cpp
 auto res=pool.submitTask(Func,args...);
 std::cout << res.get() << std::endl;
@@ -52,7 +52,7 @@ Or the dtor will do it for you :)
 <br>
 
 ### Performance Test
-I use two different simple methods to test the performance of Thread Pool.<br>
+I used two different simple methods to test the performance of Thread Pool.<br>
 - 1. Create a thread , run the tasks , and let it go.
 - 2. Create a thread pool, throw tasks into it.
 
@@ -87,3 +87,6 @@ for (int i = 0; i < 3000; ++i) {
 Select `Debug-mode` in Visual Studio, if you execute it directly, OS'll probably kill it for create-destroy threads too frequently.<br>
 Here comes the test result:<br>
 ![test_result](https://github.com/SimonCqk/ThreadPool/blob/master/performance_test.png?raw=true)
+<br>
+
+**You can obviously see the performance gap.**
