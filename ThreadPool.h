@@ -55,7 +55,7 @@ namespace thread_pool {
 			return task;
 		}
 
-		using return_type = typename std::result_of<Func(Args...)>::type;
+		using return_type = typename std::result_of_t<Func(Args...)>;
 
 		auto task = std::make_shared<std::packaged_task<return_type()>>(
 			[func = std::forward<Func>(func),
