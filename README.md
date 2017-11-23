@@ -3,17 +3,17 @@
 > This is a tiny thread pool embraced by C++11/14/17 features. So a c++17-supported complier is required for compling. Enable new features by add `-std=c++17 (g++/clang++)` or `/std:c++17 (vc++)`.
 
 ### Create Thread Pool Object
-You can pass a specific interger to the ctor to specify the maximum working threads.
+You can pass a specific interger to the ctor to specify maximum working threads.
 ```cpp
 ThreadPool pool(10);
 ```
-Firstly, the pool will launch `core_thread_count` threads running and waiting for tasks, if it can not meet the demand , other new threads will be launched until it reaches `max_thread_count`.
+First of all, the pool will launch `core_thread_count` threads running and waiting for tasks, if demand can not be met , other new threads will be launched until it reaches `max_thread_count`.
 
 <br>
 
 ### Submit New Tasks
 The core operation of Thread Pool is `submitting tasks` into the pool and let it run.<br>
-Pass a callable obj as the **1st** arg and pass **other args** by each.<br>
+Pass a callable obj as the **1st** arg and pass **other args** one by one.<br>
 ```cpp
 ThreadPool pool(10);
 int SomeFunc(args...);
@@ -58,13 +58,12 @@ I used two different simple methods to test the performance of Thread Pool.<br>
 
 ```cpp
 // method one.
-std::vector<int> answers;
 std::vector<std::thread> threads;
 for (int i = 0; i < 3000; ++i) {
-	threads.emplace_back([i,&answers] {
+	threads.emplace_back([i] {
 		std::cout << " process... " << i;
 		for (int j = 0; j < 100; ++j);
-		answers.push_back(i*i);
+		std::cout << i*i << ' ';
 	});
 }
 for (auto& thread : threads) {
@@ -83,6 +82,8 @@ for (int i = 0; i < 3000; ++i) {
 	})
 	);
 }
+for (auto&& result : results)
+		std::cout << result.get() << ' ';
 ```
 Select `Debug-mode` in Visual Studio, if you execute it directly, OS'll probably kill it for create-destroy threads too frequently.<br>
 Here comes the test result:<br>

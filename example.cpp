@@ -11,13 +11,12 @@ int main()
 	using namespace std::literals;
 	using namespace std::chrono;
 	auto start1 = system_clock::now();
-	std::vector<int> answers;
 	std::vector<std::thread> threads;
 	for (int i = 0; i < 3000; ++i) {
-		threads.emplace_back([i,&answers] {
+		threads.emplace_back([i] {
 			std::cout << " process... " << i;
 			for (int j = 0; j < 100; ++j);
-			answers.push_back(i*i);
+			std::cout << i*i << ' ';
 		});
 	}
 	for (auto& thread : threads) {
