@@ -12,10 +12,10 @@ int main()
 	using namespace std::chrono;
 	auto start1 = system_clock::now();
 	std::vector<std::thread> threads;
-	for (int i = 0; i < 3000; ++i) {
+	for (int i = 0; i < 1000; ++i) {
 		threads.emplace_back([i] {
 			std::cout << " process... " << i;
-			for (int j = 0; j < 100; ++j);
+			std::this_thread::sleep_for(1ms);
 			std::cout << i*i << ' ';
 		});
 	}
@@ -26,11 +26,11 @@ int main()
 	auto start2= system_clock::now();
 	ThreadPool pool(10);
 	std::vector< std::future<int> > results;
-	for (int i = 0; i < 3000; ++i) {
+	for (int i = 0; i < 1000; ++i) {
 		results.emplace_back(
 			pool.submitTask([i] {
 			std::cout << " process... " << i;
-			for (int j = 0; j < 100; ++j);
+			std::this_thread::sleep_for(1ms);
 			return i*i;
 		})
 		);
