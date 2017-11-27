@@ -59,11 +59,24 @@ I used two different simple methods to test the performance of Thread Pool.<br>
 ```cpp
 // method one.
 std::vector<std::thread> threads;
-for (int i = 0; i < 3000; ++i) {
+for (int i = 0; i < 1000; ++i) {
 	threads.emplace_back([i] {
-		std::cout << " process... " << i;
-		for (int j = 0; j < 100; ++j);
-		std::cout << i*i << ' ';
+		std::mutex mtx;
+		{
+			std::lock_guard<std::mutex> lock(mtx);
+			std::cout << " process... " << i;
+		}
+		int test;
+		for (int j = 0; j < 500; ++j) {
+			test = j * 100 / 123;
+		}
+		for (int j = 0; j < 500; ++j) {
+			test = j * 123 / 100;
+		}
+		{
+			std::lock_guard<std::mutex> lock(mtx);
+			std::cout << (test*test) % 1000 << ' ';
+		}
 	});
 }
 for (auto& thread : threads) {
@@ -71,19 +84,29 @@ for (auto& thread : threads) {
 }
 
 // method two.
-ThreadPool pool(10);
+ThreadPool pool(4);
 std::vector< std::future<int> > results;
-for (int i = 0; i < 3000; ++i) {
+for (int i = 0; i < 1000; ++i) {
 	results.emplace_back(
 		pool.submitTask([i] {
-		std::cout << " process... " << i;
-		for (int j = 0; j < 100; ++j);
-		return i*i;
+		std::mutex mtx;
+		{
+			std::lock_guard<std::mutex> lock(mtx);
+			std::cout << " process... " << i;
+		}
+		int test;
+		for (int j = 0; j < 500; ++j) {
+			test = j * 100 / 123;
+		}
+		for (int j = 0; j < 500; ++j) {
+			test = j * 123 / 100;
+		}
+		return (test*test) % 1000;
 	})
 	);
 }
 for (auto&& result : results)
-		std::cout << result.get() << ' ';
+	std::cout << result.get() << ' ';
 ```
 Select `Debug-mode` in Visual Studio, if you execute it directly, OS'll probably kill it for create-destroy threads too frequently.<br>
 Here comes the test result:<br>

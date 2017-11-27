@@ -37,7 +37,7 @@ int main()
 	}
 	auto end1 = system_clock::now();
 	auto start2 = system_clock::now();
-	ThreadPool pool(10);
+	ThreadPool pool(4);
 	std::vector< std::future<int> > results;
 	for (int i = 0; i < 1000; ++i) {
 		results.emplace_back(
