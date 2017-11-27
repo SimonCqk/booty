@@ -1,6 +1,7 @@
 #pragma once
-#ifndef _THREAD_POOL_H
-#define _THREAD_POOL_H
+#ifndef _THREAD_POOL_IMPL_H
+#define _THREAD_POOL_IMPL_H
+
 #include<thread>
 #include<mutex>
 #include<future>
@@ -14,9 +15,9 @@
 
 namespace thread_pool {
 
-	class ThreadPool {
+	class ThreadPool_impl {
 	public:
-		explicit ThreadPool(const size_t& max_threads);
+		explicit ThreadPool_impl(const size_t& max_threads);
 
 		template<class Func, typename... Args>
 		decltype(auto) submitTask(Func&& func, Args&&... args);
@@ -24,7 +25,7 @@ namespace thread_pool {
 		void unpause();
 		void close();
 		bool isClosed() const;
-		~ThreadPool();
+		~ThreadPool_impl();
 	protected:
 		void _scheduler();
 		void _launchNew();
@@ -46,10 +47,10 @@ namespace thread_pool {
 
 	template<class Func, typename... Args>
 	inline decltype(auto)
-		ThreadPool::submitTask(Func&& func, Args&&...args)
+		ThreadPool_impl::submitTask(Func&& func, Args&&...args)
 	{
 		if (tasks.size() > max_thread_count) {  // all threads are under-working.
-			//  execute it asynchronous and let STL do the load-balancing.
+												//  execute it asynchronous and let STL do the load-balancing.
 			auto task = std::async(std::launch::async,
 				std::forward<Func>(func), std::forward<Args>(args)...);
 			return task;
@@ -77,4 +78,4 @@ namespace thread_pool {
 	}
 }
 
-#endif // !_THREAD_POOL_H
+#endif // !_THREAD_POOL_IMPL_H

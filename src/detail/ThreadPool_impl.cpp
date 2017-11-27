@@ -1,9 +1,10 @@
-#include "ThreadPool.h"
+#include"ThreadPool_impl.h"
 
-size_t thread_pool::ThreadPool::core_thread_count = std::thread::hardware_concurrency() - 1;
+size_t thread_pool::ThreadPool_impl::core_thread_count = std::thread::hardware_concurrency() - 1;
 
-thread_pool::ThreadPool::ThreadPool(const size_t & max_threads)
-	: closed(false), paused(false), max_thread_count(max_threads)
+thread_pool::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
+	: closed(false), paused(false),
+	max_thread_count(2 * std::thread::hardware_concurrency())
 {
 	if (max_threads <= 0) {
 		max_thread_count = core_thread_count;
@@ -14,28 +15,33 @@ thread_pool::ThreadPool::ThreadPool(const size_t & max_threads)
 		max_thread_count = core_thread_count;
 		t_count = max_threads;
 	}
-	// launch some threads firstly.
+	else if (max_threads < max_thread_count)
+		// to limit number of working threads,
+		// the maximum value can only be (2 * hardware threads).
+		max_thread_count = max_threads;  
+
+	// pre-launch some threads.
 	for (size_t i = 0; i < t_count; ++i) {
 		_launchNew();
 	}
 	// lanuch sheduler and running background.
-	std::thread scheduler = std::thread(&ThreadPool::_scheduler, this);
+	std::thread scheduler = std::thread(&ThreadPool_impl::_scheduler, this);
 	scheduler.detach();
 }
 
-bool thread_pool::ThreadPool::isClosed() const
+bool thread_pool::ThreadPool_impl::isClosed() const
 {
 	return this->closed;
 }
 
-void thread_pool::ThreadPool::pause()
+void thread_pool::ThreadPool_impl::pause()
 {
 	std::mutex mtx;
 	std::lock_guard<std::mutex> lock(mtx);
 	paused = true;
 }
 
-void thread_pool::ThreadPool::unpause()
+void thread_pool::ThreadPool_impl::unpause()
 {
 	{
 		std::mutex mtx;
@@ -45,7 +51,7 @@ void thread_pool::ThreadPool::unpause()
 	cond_var.notify_all();
 }
 
-void thread_pool::ThreadPool::close()
+void thread_pool::ThreadPool_impl::close()
 {
 	if (!closed) {
 		{
@@ -60,12 +66,12 @@ void thread_pool::ThreadPool::close()
 	}
 }
 
-thread_pool::ThreadPool::~ThreadPool()
+thread_pool::ThreadPool_impl::~ThreadPool_impl()
 {
 	close();
 }
 
-void thread_pool::ThreadPool::_scheduler()
+void thread_pool::ThreadPool_impl::_scheduler()
 {
 	// find new task and notify one free thread to execute.
 	while (!this->closed) {  // auto-exit when close.
@@ -88,7 +94,7 @@ void thread_pool::ThreadPool::_scheduler()
 	}
 }
 
-void thread_pool::ThreadPool::_launchNew()
+void thread_pool::ThreadPool_impl::_launchNew()
 {
 	if (threads.size() < max_thread_count) {
 		threads.emplace_back([this] {
