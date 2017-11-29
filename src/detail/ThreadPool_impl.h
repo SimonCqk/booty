@@ -49,12 +49,6 @@ namespace thread_pool {
 	inline decltype(auto)
 		ThreadPool_impl::submitTask(Func&& func, Args&&...args)
 	{
-		if (tasks.size() > max_thread_count) {  // all threads are under-working.
-												//  execute it asynchronous and let STL do the load-balancing.
-			auto task = std::async(std::launch::async,
-				std::forward<Func>(func), std::forward<Args>(args)...);
-			return task;
-		}
 
 		using return_type = typename std::result_of_t<Func(Args...)>;
 

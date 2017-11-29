@@ -20,11 +20,11 @@ int main()
 				std::cout << " process... " << i;
 			}
 			int test;
-			for (int j = 0; j < 500; ++j) {
+			for (int j = 0; j < 10000; ++j) {
 				test = j * 100 / 123;
 			}
-			for (int j = 0; j < 500; ++j) {
-				test = j * 123 / 100;
+			for (int j = 0; j < 10000; ++j) {
+				test *= j * 123 / 100;
 			}
 			{
 				std::lock_guard<std::mutex> lock(mtx);
@@ -48,11 +48,11 @@ int main()
 				std::cout << " process... " << i;
 			}
 			int test;
-			for (int j = 0; j < 500; ++j) {
+			for (int j = 0; j < 10000; ++j) {
 				test = j * 100 / 123;
 			}
-			for (int j = 0; j < 500; ++j) {
-				test = j * 123 / 100;
+			for (int j = 0; j < 10000; ++j) {
+				test *= j * 123 / 100;
 			}
 			return (test*test) % 1000;
 		})

@@ -67,10 +67,10 @@ for (int i = 0; i < 1000; ++i) {
 			std::cout << " process... " << i;
 		}
 		int test;
-		for (int j = 0; j < 500; ++j) {
+		for (int j = 0; j < 10000; ++j) {
 			test = j * 100 / 123;
 		}
-		for (int j = 0; j < 500; ++j) {
+		for (int j = 0; j < 10000; ++j) {
 			test = j * 123 / 100;
 		}
 		{
@@ -95,10 +95,10 @@ for (int i = 0; i < 1000; ++i) {
 			std::cout << " process... " << i;
 		}
 		int test;
-		for (int j = 0; j < 500; ++j) {
+		for (int j = 0; j < 10000; ++j) {
 			test = j * 100 / 123;
 		}
-		for (int j = 0; j < 500; ++j) {
+		for (int j = 0; j < 10000; ++j) {
 			test = j * 123 / 100;
 		}
 		return (test*test) % 1000;
@@ -108,7 +108,7 @@ for (int i = 0; i < 1000; ++i) {
 for (auto&& result : results)
 	std::cout << result.get() << ' ';
 ```
-Select `Debug-mode` in Visual Studio, if you execute it directly, OS'll probably kill it for create-destroy threads too frequently.<br>
+REMARK: Test results under `Debug-mode` has no reference meaning .<br>
 Here comes the test result:<br>
 ![test_result](https://github.com/SimonCqk/ThreadPool/blob/master/performance_test.png?raw=true)
 <br>
