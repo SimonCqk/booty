@@ -67,10 +67,10 @@ for (int i = 0; i < 1000; ++i) {
 			std::cout << " process... " << i;
 		}
 		int test;
-		for (int j = 0; j < 1000000; ++j) {
+		for (int j = 0; j < 100000; ++j) {
 			test = j * 100 / 123;
 		}
-		for (int j = 0; j < 1000000; ++j) {
+		for (int j = 0; j < 100000; ++j) {
 			test *= j * 123 / 100;
 		}
 		{
@@ -85,25 +85,29 @@ for (auto& thread : threads) {
 
 // method two.
 ThreadPool pool(4);
+std::vector<std::future<void>> results;
 for (int i = 0; i < 1000; ++i) {
-	pool.submitTask([i, &mtx] {
+	results.push_back(pool.submitTask([i, &mtx] {
 		{
 			std::lock_guard<std::mutex> lock(mtx);
 			std::cout << " process... " << i;
 		}
 		int test;
-		for (int j = 0; j < 1000000; ++j) {
+		for (int j = 0; j < 100000; ++j) {
 			test = j * 100 / 123;
 		}
-		for (int j = 0; j < 1000000; ++j) {
+		for (int j = 0; j < 100000; ++j) {
 			test *= j * 123 / 100;
 		}
 		{
 			std::lock_guard<std::mutex> lock(mtx);
 			std::cout << (test*test) % 1000 << ' ';
 		}
-	});
+	})
+	);
 }
+for (auto& result : results)
+	result.get();
 ```
 REMARK: Test results under `Debug-mode` has no reference meaning .<br>
 Here comes the test result:<br>
