@@ -57,21 +57,21 @@ I used two different simple methods to test the performance of Thread Pool.<br>
 - 2. Create a thread pool, throw tasks into it.
 
 ```cpp
+std::mutex mtx;
 // method one.
 std::vector<std::thread> threads;
 for (int i = 0; i < 1000; ++i) {
-	threads.emplace_back([i] {
-		std::mutex mtx;
+	threads.emplace_back([i, &mtx] {
 		{
 			std::lock_guard<std::mutex> lock(mtx);
 			std::cout << " process... " << i;
 		}
 		int test;
-		for (int j = 0; j < 10000; ++j) {
+		for (int j = 0; j < 1000000; ++j) {
 			test = j * 100 / 123;
 		}
-		for (int j = 0; j < 10000; ++j) {
-			test = j * 123 / 100;
+		for (int j = 0; j < 1000000; ++j) {
+			test *= j * 123 / 100;
 		}
 		{
 			std::lock_guard<std::mutex> lock(mtx);
@@ -85,28 +85,25 @@ for (auto& thread : threads) {
 
 // method two.
 ThreadPool pool(4);
-std::vector< std::future<int> > results;
 for (int i = 0; i < 1000; ++i) {
-	results.emplace_back(
-		pool.submitTask([i] {
-		std::mutex mtx;
+	pool.submitTask([i, &mtx] {
 		{
 			std::lock_guard<std::mutex> lock(mtx);
 			std::cout << " process... " << i;
 		}
 		int test;
-		for (int j = 0; j < 10000; ++j) {
+		for (int j = 0; j < 1000000; ++j) {
 			test = j * 100 / 123;
 		}
-		for (int j = 0; j < 10000; ++j) {
-			test = j * 123 / 100;
+		for (int j = 0; j < 1000000; ++j) {
+			test *= j * 123 / 100;
 		}
-		return (test*test) % 1000;
-	})
-	);
+		{
+			std::lock_guard<std::mutex> lock(mtx);
+			std::cout << (test*test) % 1000 << ' ';
+		}
+	});
 }
-for (auto&& result : results)
-	std::cout << result.get() << ' ';
 ```
 REMARK: Test results under `Debug-mode` has no reference meaning .<br>
 Here comes the test result:<br>
