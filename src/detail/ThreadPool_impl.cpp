@@ -1,6 +1,6 @@
 #include"ThreadPool_impl.h"
 
-size_t thread_pool::ThreadPool_impl::core_thread_count = std::thread::hardware_concurrency() - 1;
+size_t thread_pool::ThreadPool_impl::core_thread_count = std::thread::hardware_concurrency() / 2 + 1;
 
 thread_pool::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
 	: closed(false), paused(false),
@@ -18,7 +18,7 @@ thread_pool::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
 	else if (max_threads < max_thread_count)
 		// to limit number of working threads,
 		// the maximum value can only be (2 * hardware threads).
-		max_thread_count = max_threads;  
+		max_thread_count = max_threads;
 
 	// pre-launch some threads.
 	for (size_t i = 0; i < t_count; ++i) {
