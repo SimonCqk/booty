@@ -2,8 +2,7 @@
 #include <vector>
 #include <chrono>
 
-#include"src/ThreadPool.h"
-
+#include"ThreadPool/ThreadPool.h"
 using namespace thread_pool;
 
 int main()
