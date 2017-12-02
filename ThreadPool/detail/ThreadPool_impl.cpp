@@ -1,8 +1,8 @@
 #include"./ThreadPool_impl.h"
 
-size_t thread_pool::ThreadPool_impl::core_thread_count = std::thread::hardware_concurrency() / 2 + 1;
+size_t concurrency::ThreadPool_impl::core_thread_count = std::thread::hardware_concurrency() / 2 + 1;
 
-thread_pool::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
+concurrency::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
 	: closed(false), paused(false),
 	max_thread_count(2 * std::thread::hardware_concurrency())
 {
@@ -29,19 +29,19 @@ thread_pool::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
 	scheduler.detach();
 }
 
-bool thread_pool::ThreadPool_impl::isClosed() const
+bool concurrency::ThreadPool_impl::isClosed() const
 {
 	return this->closed;
 }
 
-void thread_pool::ThreadPool_impl::pause()
+void concurrency::ThreadPool_impl::pause()
 {
 	std::mutex mtx;
 	std::lock_guard<std::mutex> lock(mtx);
 	paused = true;
 }
 
-void thread_pool::ThreadPool_impl::unpause()
+void concurrency::ThreadPool_impl::unpause()
 {
 	{
 		std::mutex mtx;
@@ -51,7 +51,7 @@ void thread_pool::ThreadPool_impl::unpause()
 	cond_var.notify_all();
 }
 
-void thread_pool::ThreadPool_impl::close()
+void concurrency::ThreadPool_impl::close()
 {
 	if (!closed) {
 		{
@@ -66,12 +66,12 @@ void thread_pool::ThreadPool_impl::close()
 	}
 }
 
-thread_pool::ThreadPool_impl::~ThreadPool_impl()
+concurrency::ThreadPool_impl::~ThreadPool_impl()
 {
 	close();
 }
 
-void thread_pool::ThreadPool_impl::_scheduler()
+void concurrency::ThreadPool_impl::_scheduler()
 {
 	// find new task and notify one free thread to execute.
 	while (!this->closed) {  // auto-exit when close.
@@ -94,7 +94,7 @@ void thread_pool::ThreadPool_impl::_scheduler()
 	}
 }
 
-void thread_pool::ThreadPool_impl::_launchNew()
+void concurrency::ThreadPool_impl::_launchNew()
 {
 	if (threads.size() < max_thread_count) {
 		threads.emplace_back([this] {

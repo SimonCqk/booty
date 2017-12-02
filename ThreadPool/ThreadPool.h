@@ -3,7 +3,7 @@
 
 #include"./detail/ThreadPool_impl.h"
 
-namespace thread_pool {
+namespace concurrency {
 
 	class ThreadPool {
 	public:

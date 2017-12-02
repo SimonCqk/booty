@@ -3,7 +3,7 @@
 #include <chrono>
 
 #include"ThreadPool/ThreadPool.h"
-using namespace thread_pool;
+using namespace concurrency;
 
 int main()
 {

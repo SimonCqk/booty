@@ -13,7 +13,7 @@
 #include<utility>
 #include<memory>
 
-namespace thread_pool {
+namespace concurrency {
 
 	class ThreadPool_impl {
 	public:
