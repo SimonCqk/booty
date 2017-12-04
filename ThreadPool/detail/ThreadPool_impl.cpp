@@ -1,8 +1,8 @@
 #include"./ThreadPool_impl.h"
 
-size_t concurrency::ThreadPool_impl::core_thread_count = std::thread::hardware_concurrency() / 2 + 1;
+size_t concurrentlib::ThreadPool_impl::core_thread_count = std::thread::hardware_concurrency() / 2 + 1;
 
-concurrency::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
+concurrentlib::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
 	: closed(false), paused(false),
 	max_thread_count(2 * std::thread::hardware_concurrency())
 {
@@ -29,19 +29,19 @@ concurrency::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
 	scheduler.detach();
 }
 
-bool concurrency::ThreadPool_impl::isClosed() const
+bool concurrentlib::ThreadPool_impl::isClosed() const
 {
 	return this->closed;
 }
 
-void concurrency::ThreadPool_impl::pause()
+void concurrentlib::ThreadPool_impl::pause()
 {
 	std::mutex mtx;
 	std::lock_guard<std::mutex> lock(mtx);
 	paused = true;
 }
 
-void concurrency::ThreadPool_impl::unpause()
+void concurrentlib::ThreadPool_impl::unpause()
 {
 	{
 		std::mutex mtx;
@@ -51,7 +51,7 @@ void concurrency::ThreadPool_impl::unpause()
 	cond_var.notify_all();
 }
 
-void concurrency::ThreadPool_impl::close()
+void concurrentlib::ThreadPool_impl::close()
 {
 	if (!closed) {
 		{
@@ -66,12 +66,12 @@ void concurrency::ThreadPool_impl::close()
 	}
 }
 
-concurrency::ThreadPool_impl::~ThreadPool_impl()
+concurrentlib::ThreadPool_impl::~ThreadPool_impl()
 {
 	close();
 }
 
-void concurrency::ThreadPool_impl::_scheduler()
+void concurrentlib::ThreadPool_impl::_scheduler()
 {
 	// find new task and notify one free thread to execute.
 	while (!this->closed) {  // auto-exit when close.
@@ -83,8 +83,8 @@ void concurrency::ThreadPool_impl::_scheduler()
 		}
 
 		if (tasks.empty() ||
-			tasks.size() > max_thread_count)  // if tasks-size > max_threads , just loop for waiting.
-			continue;
+			tasks.size() > max_thread_count)  // if tasks-size > max_threads , reschedule the execution of threads.
+			std::this_thread::yield();
 		else if (tasks.size() <= threads.size())
 			cond_var.notify_one();
 		else if (tasks.size() < max_thread_count) {
@@ -94,7 +94,7 @@ void concurrency::ThreadPool_impl::_scheduler()
 	}
 }
 
-void concurrency::ThreadPool_impl::_launchNew()
+void concurrentlib::ThreadPool_impl::_launchNew()
 {
 	if (threads.size() < max_thread_count) {
 		threads.emplace_back([this] {
