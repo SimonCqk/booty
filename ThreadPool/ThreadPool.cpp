@@ -1,21 +1,21 @@
 #include"./ThreadPool.h"
 
-void concurrency::ThreadPool::pause()
+void concurrentlib::ThreadPool::pause()
 {
 	_pool->pause();
 }
 
-void concurrency::ThreadPool::unpause()
+void concurrentlib::ThreadPool::unpause()
 {
 	_pool->unpause();
 }
 
-void concurrency::ThreadPool::close()
+void concurrentlib::ThreadPool::close()
 {
 	_pool->close();
 }
 
-bool concurrency::ThreadPool::isClosed() const
+bool concurrentlib::ThreadPool::isClosed() const
 {
 	return _pool->isClosed();
 }

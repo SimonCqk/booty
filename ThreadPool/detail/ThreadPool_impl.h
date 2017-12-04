@@ -13,7 +13,7 @@
 #include<utility>
 #include<memory>
 
-namespace concurrency {
+namespace concurrentlib {
 
 	class ThreadPool_impl {
 	public:
