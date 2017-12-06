@@ -1,6 +1,6 @@
 #include"./ThreadPool_impl.h"
 
-size_t concurrentlib::ThreadPool_impl::core_thread_count = std::thread::hardware_concurrency() / 2 + 1;
+size_t concurrentlib::ThreadPool_impl::core_thread_count = std::thread::hardware_concurrency() - 1;
 
 concurrentlib::ThreadPool_impl::ThreadPool_impl(const size_t & max_threads)
 	: closed(false), paused(false),

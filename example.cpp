@@ -71,6 +71,6 @@ int main()
 	std::cout << "Test two took "
 		<< double(dur2.count()) * microseconds::period::num / microseconds::period::den
 		<< "s" << std::endl;
- 
+
 	return 0;
 }
