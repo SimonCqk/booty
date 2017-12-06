@@ -1,8 +1,9 @@
 #pragma once
-#ifndef _CONCURRENT_QUEUE_IMPL_H
-#define _CONCURRENT_QUEUE_IMPL_H
+#ifndef _CONCURRENT_QUEUE_IMPL_HPP
+#define _CONCURRENT_QUEUE_IMPL_HPP
 
 #include<array>
+#include<chrono>
 #include<thread>
 #include<atomic>
 #include<condition_variable>
@@ -19,7 +20,6 @@ namespace concurrentlib {
 		using asize_t = std::atomic_size_t;
 		using abool = std::atomic_bool;
 		using aListNode_p = std::atomic<ListNode*>;
-		using aContLinkedList = std::atomic<ContLinkedList>;
 
 		constexpr size_t SUB_QUEUE_NUM = 8;
 
@@ -51,7 +51,7 @@ namespace concurrentlib {
 
 	public:
 		ConcurrentQueue_impl();
-		ConcurrentQueue_impl(const size_t& num_elements=100);
+		ConcurrentQueue_impl(const size_t& num_elements = 1000);
 
 
 
@@ -85,6 +85,13 @@ namespace concurrentlib {
 		return _size.load() == 0;
 	}
 
+	template<typename T>
+	inline size_t ConcurrentQueue_impl<T>::_choose()
+	{
+		using namespace std::chrono;
+		return (_size*(system_clock::now().time_since_epoch().count() >> 31)) % SUB_QUEUE_NUM;
+	}
+
 }
 
-#endif // !_CONCURRENT_QUEUE_IMPL_H
+#endif // !_CONCURRENT_QUEUE_IMPL_HPP
