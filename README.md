@@ -115,3 +115,5 @@ Here comes the test result:<br>
 <br>
 
 **You can obviously see the performance gap.**
+
+## The next step: Use `ConcurrentQueue` instead of `std::queue`, still under working.
