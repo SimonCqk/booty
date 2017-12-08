@@ -90,7 +90,7 @@ namespace concurrentlib {
 					return _size.load() < max_elements;
 				});
 			}
-			if (is_empty.load(std::memory_order_relaxed))
+			if (this->empty())
 				cond_empty.notify_one();
 			while (!tryEnqueue(data));  // try until succeed.
 		}
@@ -102,7 +102,7 @@ namespace concurrentlib {
 					return _size.load() < max_elements;
 				});
 			}
-			if (is_empty.load(std::memory_order_relaxed))
+			if (this->empty())
 				cond_empty.notify_one();
 			while (!tryEnqueue(std::forward<T>(data)));  // try until succeed.
 		}
@@ -118,10 +118,10 @@ namespace concurrentlib {
 		}
 
 		size_t size() const {
-			return _size.load();
+			return _size.load(std::memory_order_acquire);
 		}
 		bool empty() const {
-			return is_empty.load();
+			return _size.load(std::memory_order_acquire) == 0;
 		}
 
 		~ConcurrentQueue_impl() {
@@ -194,21 +194,22 @@ namespace concurrentlib {
 				return false;
 			ListNode* _head = cur_queue.head.load(std::memory_order_relaxed);
 			size_t try_time = 0;
+			std::cout << _head->data << std::endl;
 			while (!_head || _head->isHold.load(std::memory_order_acquire)) {
 				if (++try_time > MAX_CONTEND_TRY_TIME)
 					return false;
 				std::this_thread::yield();
 				_head = cur_queue.head.load(std::memory_order_acquire);
 			}
-			if (!_head || !_head->isHold.load(std::memory_order_acquire))  // ensure it has been acquired successfully.
+			if (!_head || _head->isHold.load(std::memory_order_acquire))  // ensure it has been acquired successfully.
 				return false;
 			_head->isHold.store(true, std::memory_order_release);
 			data = _head->data;
-			if (_head == cur_queue.tail.load()) {  // it will be empty after dequeue.
+			if (_head == cur_queue.tail.load()) {  // this sub-queue will be empty after dequeue.
 				delete _head;
 				_head = nullptr;
 				cur_queue.tail.store(nullptr, std::memory_order_release);
-				is_empty.store(true, std::memory_order_release);
+
 				std::unique_lock<std::mutex> lock(mtx_empty);
 				cond_empty.wait(lock, [this] {
 					return !this->empty();
@@ -234,7 +235,6 @@ namespace concurrentlib {
 		std::array<ContLinkedList, SUB_QUEUE_NUM> sub_queues;
 		asize_t _size;
 		asize_t _dequeue_idx;
-		abool is_empty;
 		size_t max_elements;
 	};
 
@@ -242,8 +242,7 @@ namespace concurrentlib {
 	inline ConcurrentQueue_impl<T>::ConcurrentQueue_impl()
 		:max_elements(-1) {
 		_size.store(0, std::memory_order_relaxed);
-		_dequeue_idx.store(-1, std::memory_order_relaxed);
-		is_empty.store(true, std::memory_order_relaxed);
+		_dequeue_idx.store(0, std::memory_order_relaxed);
 		// pre-allocate PRE_ALLOC_NODE_NUM nodes.
 		for (auto& queue : sub_queues) {
 			for (int i = 0; i < PRE_ALLOC_NODE_NUM / SUB_QUEUE_NUM; ++i) {
@@ -275,7 +274,6 @@ namespace concurrentlib {
 		:max_elements(num_elements) {
 		_size.store(0, std::memory_order_relaxed);
 		_dequeue_idx.store(0, std::memory_order_relaxed);
-		is_empty.store(true, std::memory_order_relaxed);
 		// allocate num_elements nodes.
 		for (auto& queue : sub_queues) {
 			for (int i = 0; i < max_elements / SUB_QUEUE_NUM; ++i) {

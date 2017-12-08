@@ -5,6 +5,7 @@ using namespace concurrentlib;
 void single_thread() {
 	ConcurrentQueue_impl<int> queue;
 	queue.enqueue(1);
+	queue.enqueue(2);
 	std::cout << queue.dequeue() << std::endl;
 }
 
