@@ -1,9 +1,10 @@
 #include"../ThreadPool/detail/ConcurrentQueue_impl.hpp"
+#include"../ThreadPool/ConcurrentQueue.hpp"
 
 using namespace concurrentlib;
 
 void single_thread() {
-	ConcurrentQueue_impl<int> queue;
+	ConcurrentQueue<int> queue;
 	queue.enqueue(1);
 	queue.enqueue(2);
 	std::cout << queue.dequeue() << std::endl;
