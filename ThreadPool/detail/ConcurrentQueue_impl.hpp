@@ -130,10 +130,13 @@ namespace concurrentlib {
 		  dequeue one element,  block when it becomes empty after dequeue.
 		*/
 		void dequeue(T& data) {
-			if (this->empty())
-				throw std::exception("No elements in queue.");
+			if (this->empty()) {
+				std::unique_lock<std::mutex> lock(mtx_empty);
+				cond_empty.wait(lock, [this] {
+					return !this->empty();
+				});
+			}
 			while (!tryDequeue(data));  // try until succeed.
-			_blockEmptyOrNot();
 		}
 
 		/*
@@ -142,11 +145,14 @@ namespace concurrentlib {
 		  doesn't provide strong exception-safety-guarantee.
 		*/
 		T dequeue() {
-			if (this->empty())
-				throw std::exception("No elements in queue.");
+			if (this->empty()) {
+				std::unique_lock<std::mutex> lock(mtx_empty);
+				cond_empty.wait(lock, [this] {
+					return !this->empty();
+				});
+			}
 			T data;
 			while (!tryDequeue(data));  // try until succeed.
-			_blockEmptyOrNot();
 			return std::move(data);
 		}
 
@@ -186,15 +192,6 @@ namespace concurrentlib {
 			return _dequeue_idx.load() % SUB_QUEUE_NUM;
 		}
 
-		void _blockEmptyOrNot() {
-			if (this->empty()) {
-				std::unique_lock<std::mutex> lock(mtx_empty);
-				cond_empty.wait(lock, [this] {
-					return !this->empty();
-				});
-			}
-		}
-
 		// return the tail of linked list.
 		// if nodes are running out, then allocate some new nodes.
 		ListNode* acquireOrAlloc(ContLinkedList& list) {
@@ -209,7 +206,7 @@ namespace concurrentlib {
 					return nullptr;
 			}
 			_tail->is_hold.store(true, std::memory_order_release);
-			if (!_tail->next) {
+			if (!_tail||!_tail->next) {
 				std::atomic_thread_fence(std::memory_order_release);
 				ListNode* tail_copy = _tail;
 				for (int i = 0; i < NEXT_ALLOC_NODE_NUM; ++i) {
