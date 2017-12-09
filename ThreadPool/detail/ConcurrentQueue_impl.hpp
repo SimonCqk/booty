@@ -80,7 +80,7 @@ namespace concurrentlib {
 		T& front() {
 			if (this->empty())
 				throw std::exception("No element in queue.");
-			auto& cur_queue = sub_queues[_getDequeueIndex()];
+			auto& cur_queue = sub_queues[_getEnqueueIndex()];
 			ListNode* _head = cur_queue.head.load(std::memory_order_relaxed);
 			while (!_head || _head->is_hold.load(std::memory_order_acquire)) {
 				std::this_thread::yield();
@@ -178,7 +178,7 @@ namespace concurrentlib {
 
 	private:
 
-		size_t _choose() {
+		size_t _getEnqueueIndex() {
 			return _size.load() % SUB_QUEUE_NUM;
 		}
 
@@ -224,12 +224,12 @@ namespace concurrentlib {
 		*/
 		template<typename Ty>
 		bool tryEnqueue(Ty&& data) {
-			auto& cur_queue = sub_queues[_choose()];
+			auto& cur_queue = sub_queues[_getEnqueueIndex()];
 			ListNode* tail = acquireOrAlloc(cur_queue);
 			if (!tail || !tail->is_hold.load(std::memory_order_acquire)||  // ensure it has been acquired successfully.
 				tail!=cur_queue.tail.load(std::memory_order_acquire))  // ensure tail is the current tail of cur_queue.
 				return false;
-			tail->next.load()->data = std::forward<Ty>(data);
+			tail->data = std::forward<Ty>(data);
 			tail->is_hold.store(false, std::memory_order_release);
 			// use CAS to update tail node.
 			while (!cur_queue.tail.compare_exchange_weak(tail, tail->next.load(std::memory_order_acquire)));
