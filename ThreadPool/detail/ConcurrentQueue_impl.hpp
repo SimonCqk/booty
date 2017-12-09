@@ -259,11 +259,10 @@ namespace concurrentlib {
 				cur_queue.tail.store(nullptr, std::memory_order_release);
 			}
 			else {
-				_head->is_hold.store(false, std::memory_order_release);
-				ListNode* old_head = _head;
-				delete _head; _head = nullptr;
+				_head->is_hold.store(false, std::memory_order_release);				
 				// use CAS to update head.
-				while (!cur_queue.head.compare_exchange_weak(old_head, old_head->next.load(std::memory_order_acquire)));
+				while (!cur_queue.head.compare_exchange_weak(_head, _head->next.load(std::memory_order_acquire)));
+				delete _head; _head = nullptr;
 			}
 			--_size;
 			++_dequeue_idx;
