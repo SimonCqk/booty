@@ -23,10 +23,10 @@ namespace concurrentlib {
 		using abool = std::atomic_bool;
 		using aListNode_p = std::atomic<ListNode*>;
 
-		static constexpr size_t SUB_QUEUE_NUM = 8;
-		static constexpr size_t PRE_ALLOC_NODE_NUM = 512;
-		static constexpr size_t NEXT_ALLOC_NODE_NUM = 32;
-		static constexpr size_t MAX_CONTEND_TRY_TIME = 64;
+		static constexpr size_t kSubQueueNum = 8;
+		static constexpr size_t kPreAllocNodeNum = 512;
+		static constexpr size_t kNextAllocNodeNum = 32;
+		static constexpr size_t kMaxContendTryTime = 64;
 
 		// define free-list structure.
 		struct ListNode
@@ -185,11 +185,11 @@ namespace concurrentlib {
 	private:
 
 		size_t _getEnqueueIndex() {
-			return _size.load() % SUB_QUEUE_NUM;
+			return _size.load() % kSubQueueNum;
 		}
 
 		size_t _getDequeueIndex() {
-			return _dequeue_idx.load() % SUB_QUEUE_NUM;
+			return _dequeue_idx.load() % kSubQueueNum;
 		}
 
 		// return the tail of linked list.
@@ -202,14 +202,14 @@ namespace concurrentlib {
 			while (!_tail || _tail->is_hold.load(std::memory_order_acquire)) {
 				std::this_thread::yield();
 				_tail = list.tail.load(std::memory_order_acquire);
-				if (++try_time > MAX_CONTEND_TRY_TIME)
+				if (++try_time > kMaxContendTryTime)
 					return nullptr;
 			}
 			_tail->is_hold.store(true, std::memory_order_release);
 			if (!_tail||!_tail->next) {
 				std::atomic_thread_fence(std::memory_order_release);
 				ListNode* tail_copy = _tail;
-				for (int i = 0; i < NEXT_ALLOC_NODE_NUM; ++i) {
+				for (int i = 0; i < kNextAllocNodeNum; ++i) {
 					tail_copy->next.store(new ListNode(T()), std::memory_order_release);
 					tail_copy = tail_copy->next.load(std::memory_order_acquire);
 				}
@@ -241,7 +241,7 @@ namespace concurrentlib {
 			ListNode* _head = cur_queue.head.load(std::memory_order_relaxed);
 			size_t try_time = 0;
 			while (!_head || _head->is_hold.load(std::memory_order_acquire)) {
-				if (++try_time > MAX_CONTEND_TRY_TIME)
+				if (++try_time > kMaxContendTryTime)
 					return false;
 				std::this_thread::yield();
 				_head = cur_queue.head.load(std::memory_order_acquire);
@@ -273,7 +273,7 @@ namespace concurrentlib {
 		std::mutex mtx_maxsize;
 
 		// std::array perform better than std::vector.
-		std::array<ContLinkedList, SUB_QUEUE_NUM> sub_queues;  
+		std::array<ContLinkedList, kSubQueueNum> sub_queues;  
 		asize_t _size;
 		asize_t _dequeue_idx;
 		size_t max_elements;
@@ -284,9 +284,9 @@ namespace concurrentlib {
 		:max_elements(-1) {
 		_size.store(0, std::memory_order_relaxed);
 		_dequeue_idx.store(0, std::memory_order_relaxed);
-		// pre-allocate PRE_ALLOC_NODE_NUM nodes.
+		// pre-allocate kPreAllocNodeNum nodes.
 		for (auto& queue : sub_queues) {
-			for (int i = 0; i < PRE_ALLOC_NODE_NUM / SUB_QUEUE_NUM; ++i) {
+			for (int i = 0; i < kPreAllocNodeNum / kSubQueueNum; ++i) {
 				if (queue.isEmpty()) {
 					queue.head.store(new ListNode(T()), std::memory_order_release);
 					queue.tail.store(queue.head.load(std::memory_order_acquire), std::memory_order_release);
@@ -308,7 +308,7 @@ namespace concurrentlib {
 		_dequeue_idx.store(0, std::memory_order_relaxed);
 		// allocate num_elements nodes.
 		for (auto& queue : sub_queues) {
-			for (int i = 0; i < max_elements / SUB_QUEUE_NUM; ++i) {
+			for (int i = 0; i < max_elements / kSubQueueNum; ++i) {
 				if (queue.isEmpty()) {
 					queue.head.store(new ListNode(T()), std::memory_order_release);
 					queue.tail.store(queue.head.load(std::memory_order_acquire), std::memory_order_release);
