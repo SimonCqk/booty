@@ -12,6 +12,7 @@
 #include<functional>
 #include<utility>
 #include<memory>
+#include"../ConcurrentQueue.hpp"
 
 namespace concurrentlib {
 
@@ -35,7 +36,8 @@ namespace concurrentlib {
 		// thread-manager
 		std::vector<std::thread> threads;
 		// tasks-queue
-		std::queue<std::function<void()>> tasks;
+		//std::queue<std::function<void()>> tasks;
+		ConcurrentQueue<std::function<void()>> tasks;
 		// for synchronization
 		std::mutex queue_mtx;
 		std::mutex pause_mtx;
@@ -50,7 +52,7 @@ namespace concurrentlib {
 		ThreadPool_impl::submitTask(Func&& func, Args&&...args)
 	{
 
-		using return_type = typename std::result_of_t<Func(Args...)>;
+		using return_type = typename std::invoke_result_t<Func(Args...)>;
 
 		auto task = std::make_shared<std::packaged_task<return_type()>>(
 			[func = std::forward<Func>(func),
@@ -60,14 +62,12 @@ namespace concurrentlib {
 		);
 
 		auto fut = task->get_future();
-		{
-			std::lock_guard<std::mutex> lock(this->queue_mtx);
-			if (this->closed || this->paused)
-				throw std::runtime_error("Do not allow executing tasks after closed or paused.");
-			tasks.emplace([=]() {  // `=` mode instead of `&` to avoid ref-dangle.
-				(*task)();
-			});
-		}
+		if (this->closed || this->paused)
+			throw std::runtime_error("Do not allow executing tasks after closed or paused.");
+
+		tasks.enqueue([=]() {  // `=` mode instead of `&` to avoid ref-dangle.
+			(*task)();
+		});
 		return fut;
 	}
 }

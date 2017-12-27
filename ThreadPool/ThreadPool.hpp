@@ -31,10 +31,12 @@ namespace concurrentlib {
 			return _pool->isClosed();
 		}
 
-		~ThreadPool() = default;
+		~ThreadPool() {
+			_pool->close();
+		}
 
 	private:
-		// pimpl pattern.
+		// pimpl idiom.
 		std::shared_ptr<ThreadPool_impl> _pool;
 	};
 

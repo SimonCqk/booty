@@ -81,11 +81,11 @@ void concurrentlib::ThreadPool_impl::_scheduler()
 				return !this->paused;
 			});
 		}
-
-		if (tasks.empty() ||
-			tasks.size() > max_thread_count)  // if tasks-size > max_threads , reschedule the execution of threads.
+		/*
+		if (tasks.empty())  // if tasks-size > max_threads , reschedule the execution of threads.
 			std::this_thread::yield();
-		else if (tasks.size() <= threads.size())
+		*/
+		if (tasks.size() <= threads.size())
 			cond_var.notify_one();
 		else if (tasks.size() < max_thread_count) {
 			_launchNew();
@@ -111,11 +111,11 @@ void concurrentlib::ThreadPool_impl::_launchNew()
 					cond_var.wait(lock, [this] {
 						return this->closed || !this->tasks.empty();  // trigger when close or new task comes.
 					});
-					if (this->closed)  // exit when close.
-						return;
-					task = std::move(this->tasks.front());
-					this->tasks.pop();
 				}
+				if (this->closed)  // exit when close.
+					return;
+				tasks.dequeue(task);
+				std::cout << "dequeue succeed===========================================================";
 				task();  // execute task.
 			}
 		}

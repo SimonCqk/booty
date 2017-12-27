@@ -127,7 +127,7 @@ namespace concurrentlib {
 		}
 
 		/*
-		  dequeue one element,  block when it becomes empty after dequeue.
+		  dequeue one element,  block when it is empty.
 		*/
 		void dequeue(T& data) {
 			if (this->empty()) {
@@ -140,7 +140,7 @@ namespace concurrentlib {
 		}
 
 		/*
-		  dequeue one element,  block when it becomes empty after dequeue.
+		  dequeue one element,  block when it is empty.
 		  NOT THAT SAFE than the former one, because it
 		  doesn't provide strong exception-safety-guarantee.
 		*/
@@ -246,14 +246,15 @@ namespace concurrentlib {
 				std::this_thread::yield();
 				_head = cur_queue.head.load(std::memory_order_acquire);
 			}
-			if (!_head || _head->is_hold.load(std::memory_order_acquire))  // ensure it has been acquired successfully.
+			if (!_head || _head->is_hold.load(std::memory_order_acquire)
+				||_head!=cur_queue.head.load(std::memory_order_acquire))  // ensure it has been acquired successfully.
 				return false;
 			_head->is_hold.store(true, std::memory_order_release);
 			data = _head->data;
 			if (_head == cur_queue.tail.load(std::memory_order_acquire)) {  // this sub-queue will be empty after dequeue.
-				delete _head;
-				_head = nullptr;
+				cur_queue.head.store(nullptr, std::memory_order_release);
 				cur_queue.tail.store(nullptr, std::memory_order_release);
+				delete _head; _head = nullptr;
 			}
 			else {
 				_head->is_hold.store(false, std::memory_order_release);				
