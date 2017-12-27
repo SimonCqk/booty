@@ -52,7 +52,7 @@ namespace concurrentlib {
 		ThreadPool_impl::submitTask(Func&& func, Args&&...args)
 	{
 
-		using return_type = typename std::invoke_result_t<Func(Args...)>;
+		using return_type = typename std::invoke_result_t<Func,Args...>;
 
 		auto task = std::make_shared<std::packaged_task<return_type()>>(
 			[func = std::forward<Func>(func),
