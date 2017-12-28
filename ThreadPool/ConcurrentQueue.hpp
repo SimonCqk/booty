@@ -13,8 +13,6 @@ namespace concurrentlib {
 		// ctors.
 		ConcurrentQueue()
 			:queue(std::make_shared<ConcurrentQueue_impl<T>>()) {}
-		ConcurrentQueue(const size_t max_elements)
-			:queue(std::make_shared<ConcurrentQueue_impl<T>>(max_elements)) {}
 
 		// sync interfaces with core implementation class.
 		T& front() {
