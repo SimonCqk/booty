@@ -12,7 +12,7 @@ int main()
 	using namespace std::literals;
 	using namespace std::chrono;
 	auto start1 = system_clock::now();
-	std::vector<std::thread> threads;
+	/*std::vector<std::thread> threads;
 	for (int i = 0; i < 1000; ++i) {
 		threads.emplace_back([i, &mtx] {
 			{
@@ -34,7 +34,7 @@ int main()
 	}
 	for (auto& thread : threads) {
 		thread.join();
-	}
+	}*/
 	auto end1 = system_clock::now();
 	auto start2 = system_clock::now();
 	ThreadPool pool(8);

@@ -11,17 +11,14 @@ using namespace std::chrono;
 
 void single_thread() {
 	auto start1 = system_clock::now();
-	ConcurrentQueue<function<void()>> queue;
-	for (int i = 0; i < 100000; ++i)
-		queue.enqueue([i] {
-		int a = i + 1;
-		cout << a << endl;
-	});
+	ConcurrentQueue<int> queue;
+	for (int i = 0; i < 100; ++i)
+		queue.enqueue(i);
 	
-	for (int i = 0; i < 100000; ++i) {
-		function<void()> data;
+	for (int i = 0; i < 100; ++i) {
+		int data;
 		queue.dequeue(data);
-		//std::cout << data << ' ';
+		std::cout << data << ' ';
 	}
 	
 	std::cout << std::endl;
@@ -60,24 +57,29 @@ void single_thread() {
 void multi_thread() {
 	ConcurrentQueue<int> queue;
 	vector<thread> threads;
-	for (int n = 0; n < 100; ++n)
+	for (int n = 0; n < 500; ++n)
 		threads.emplace_back([&queue] {
-		for (int i = 0; i < 10; ++i)
+		for (int i = 0; i < 10; ++i) {
+			cout << "start to enqueue." << endl;
 			queue.enqueue(i);
+			cout<< "enqueue successfully." << endl;
+		}
 	});
-	vector<thread> other_threads;
+	/*vector<thread> other_threads;
 	for (int n = 0; n < 100; ++n)
 		other_threads.emplace_back([&queue] {
 		for (int i = 0; i < 10; ++i)
 			queue.dequeue();
-	});
+	});*/
 	for (auto& thread : threads)
 		thread.join();
-	for (auto& thread : other_threads)
-		thread.join();
+	/*for (auto& thread : other_threads)
+		thread.join();*/
 }
 
 int main() {
-	multi_thread();
+	cout << "START!!!!" << endl;
+	single_thread();
+	cout << "FINISH!!!!" << endl;
 	return 0;
 }

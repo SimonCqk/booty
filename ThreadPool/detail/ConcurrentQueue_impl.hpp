@@ -48,7 +48,7 @@ namespace concurrentlib {
 		};
 
 		// define concurrent linked-list.
-		struct ContLinkedList  
+		struct ContLinkedList
 		{
 			aListNode_p head;
 			aListNode_p tail;
@@ -57,8 +57,7 @@ namespace concurrentlib {
 				tail.store(head.load(std::memory_order_relaxed), std::memory_order_relaxed);  // init: head = tail
 			}
 			bool isEmpty() {
-				return head.load(std::memory_order_relaxed) == tail.load(std::memory_order_relaxed)
-					&& (!head.load(std::memory_order_relaxed);
+				return head.load(std::memory_order_relaxed) == tail.load(std::memory_order_relaxed);
 			}
 		};
 
@@ -76,7 +75,7 @@ namespace concurrentlib {
 		}
 
 		/*
-	      enqueue one element.
+		  enqueue one element.
 		*/
 		void enqueue(const T& data) {
 			if (this->empty()) {
@@ -97,7 +96,7 @@ namespace concurrentlib {
 			}
 			else
 				while (!tryEnqueue(std::forward<T>(data)));
-			
+
 		}
 
 		/*
@@ -159,7 +158,7 @@ namespace concurrentlib {
 	private:
 
 		size_t _getEnqueueIndex() {
-			return _size.load() % kSubQueueNum;
+			return _enqueue_idx.load() % kSubQueueNum;
 		}
 
 		size_t _getDequeueIndex() {
@@ -171,17 +170,17 @@ namespace concurrentlib {
 		ListNode* acquireOrAllocTail(ContLinkedList& list) {
 			if (list.isEmpty())
 				return nullptr;
-			ListNode* _tail = list.tail.load(std::memory_order_relaxed);
-			size_t try_time = 0;
-			while (!_tail || _tail->hold.load(std::memory_order_acquire)) {
+			ListNode* _tail = list.tail.load(std::memory_order_acquire);
+			for (size_t try_time = 0; !_tail || _tail->hold.load(std::memory_order_acquire); ++try_time) {
 				std::this_thread::yield();
 				_tail = list.tail.load(std::memory_order_acquire);
-				if (++try_time > kMaxContendTryTime)
+				if (try_time >= kMaxContendTryTime)
 					return nullptr;
 			}
 			_tail->hold.store(true, std::memory_order_release);
-			if (!_tail||!_tail->next) {
-				std::atomic_thread_fence(std::memory_order_release);
+			// queue-capacity is running out.
+			if (!_tail || !_tail->next.load(std::memory_order_relaxed)) {
+				std::atomic_thread_fence(std::memory_order_acq_rel);
 				ListNode* tail_copy = _tail;
 				for (int i = 0; i < kNextAllocNodeNum; ++i) {
 					tail_copy->next.store(new ListNode(T()), std::memory_order_release);
@@ -192,18 +191,19 @@ namespace concurrentlib {
 		}
 
 		/*
-		  try to get the front element.
+		  try to get the head element.
 		*/
-		ListNode* tryGetFront() {
-			if (this->empty())
-				throw std::exception("No element in queue.");
-			auto& cur_queue = sub_queues[_getEnqueueIndex()];
-			ListNode* _head = cur_queue.head.load(std::memory_order_acquire);
-			while (!_head || _head->hold.load(std::memory_order_acquire)) {
+		ListNode* tryGetFront(ContLinkedList& cur_queue,ListNode* _head) {
+			_head->hold.store(true, std::memory_order_release);
+			ListNode* next = _head->next.load(std::memory_order_acquire);
+			for (size_t try_time = 0; !next || next->hold.load(std::memory_order_acquire); ++try_time) {
 				std::this_thread::yield();
-				_head = cur_queue.head.load(std::memory_order_acquire);
+				next = _head->next.load(std::memory_order_acquire);
+				if (try_time >= kMaxContendTryTime)
+					return nullptr;
 			}
-			return _head;
+			_head->hold.store(false, std::memory_order_release);
+			return next;
 		}
 
 		/*
@@ -213,45 +213,30 @@ namespace concurrentlib {
 		bool tryEnqueue(Ty&& data) {
 			auto& cur_queue = sub_queues[_getEnqueueIndex()];
 			ListNode* tail = acquireOrAllocTail(cur_queue);
-			if (!tail || !tail->hold.load(std::memory_order_acquire)||  // ensure it has been acquired successfully.
-				tail!=cur_queue.tail.load(std::memory_order_acquire))  // ensure tail is the current tail of cur_queue.
+			if (!tail || !tail->hold.load(std::memory_order_acquire) ||  // ensure it has been acquired successfully.
+				tail != cur_queue.tail.load(std::memory_order_acquire))  // ensure tail is the current tail of cur_queue.
 				return false;
 			tail->data = std::forward<Ty>(data);
 			tail->hold.store(false, std::memory_order_release);
 			// use CAS to update tail node.
 			while (!cur_queue.tail.compare_exchange_weak(tail, tail->next.load(std::memory_order_acquire)));
 			++_size;
+			++_enqueue_idx;
 			return true;
 		}
 
 		bool tryDequeue(T& data) {
 			auto& cur_queue = sub_queues[_getDequeueIndex()];
-			if (cur_queue.isEmpty())
-				return false;
 			ListNode* _head = cur_queue.head.load(std::memory_order_acquire);
-			size_t try_time = 0;
-			while (!_head || _head->hold.load(std::memory_order_acquire)) {
-				if (++try_time > kMaxContendTryTime)
-					return false;
-				std::this_thread::yield();
-				_head = cur_queue.head.load(std::memory_order_acquire);
-			}
-			if (!_head || _head->hold.load(std::memory_order_acquire)
-				||_head!=cur_queue.head.load(std::memory_order_acquire))  // ensure it has been acquired successfully.
+			if (cur_queue.isEmpty()||_head->hold.load(std::memory_order_relaxed))
 				return false;
-			_head->hold.store(true, std::memory_order_release);
-			data = _head->data;
-			if (_head == cur_queue.tail.load(std::memory_order_acquire)) {  // this sub-queue will be empty after dequeue.
-				cur_queue.head.store(nullptr, std::memory_order_release);
-				cur_queue.tail.store(nullptr, std::memory_order_release);
-				delete _head; _head = nullptr;
-			}
-			else {
-				_head->hold.store(false, std::memory_order_release);				
-				// use CAS to update head.
-				while (!cur_queue.head.compare_exchange_weak(_head, _head->next.load(std::memory_order_acquire)));
-				delete _head; _head = nullptr;
-			}
+			ListNode* _next = tryGetFront(cur_queue,_head);
+			_next->hold.store(true, std::memory_order_release);
+			data = _next->data;
+			// use CAS to update head.
+			while (!cur_queue.head.compare_exchange_weak(_head, _next));
+			_next->hold.store(false, std::memory_order_release);
+			delete _head; _head = nullptr;
 			--_size;
 			++_dequeue_idx;
 			return true;
@@ -262,29 +247,31 @@ namespace concurrentlib {
 		std::mutex mtx_empty;
 
 		// std::array perform better than std::vector.
-		std::array<ContLinkedList, kSubQueueNum> sub_queues;  
+		std::array<ContLinkedList, kSubQueueNum> sub_queues;
 		asize_t _size;
+		asize_t _enqueue_idx;
 		asize_t _dequeue_idx;
 	};
 
 	template<typename T>
 	inline ConcurrentQueue_impl<T>::ConcurrentQueue_impl() {
 		_size.store(0, std::memory_order_relaxed);
+		_enqueue_idx.store(0, std::memory_order_relaxed);
 		_dequeue_idx.store(0, std::memory_order_relaxed);
 		// pre-allocate kPreAllocNodeNum nodes.
 		for (auto& queue : sub_queues) {
 			for (int i = 0; i < kPreAllocNodeNum / kSubQueueNum; ++i) {
 				if (queue.isEmpty()) {
-					queue.head.store(new ListNode(T()), std::memory_order_release);
-					queue.tail.store(queue.head.load(std::memory_order_acquire), std::memory_order_release);
+					queue.head.store(new ListNode(T()), std::memory_order_relaxed);
+					queue.head.load(std::memory_order_relaxed)->next.store(new ListNode(T()), std::memory_order_relaxed);
+					queue.tail.store(queue.head.load(std::memory_order_relaxed)->next.load(std::memory_order_relaxed), std::memory_order_relaxed);
 				}
 				else {
-					queue.tail.load(std::memory_order_acquire)->next.store(new ListNode(T()), std::memory_order_release);
-					queue.tail.store(queue.tail.load(std::memory_order_acquire)->next.load(std::memory_order_acquire)
-						, std::memory_order_release);
+					queue.tail.load(std::memory_order_relaxed)->next.store(new ListNode(T()), std::memory_order_relaxed);
+					queue.tail.store(queue.tail.load(std::memory_order_relaxed)->next.load(std::memory_order_relaxed), std::memory_order_relaxed);
 				}
 			}
-			queue.tail.store(queue.head.load(std::memory_order_relaxed),std::memory_order_relaxed);
+			queue.tail.store(queue.head.load(std::memory_order_relaxed)->next.load(std::memory_order_relaxed), std::memory_order_relaxed);
 		}
 	}
 
