@@ -36,6 +36,7 @@ int main()
 		thread.join();
 	}*/
 	auto end1 = system_clock::now();
+	std::this_thread::sleep_for(2s);
 	auto start2 = system_clock::now();
 	ThreadPool pool(8);
 	std::vector<std::future<void>> results;

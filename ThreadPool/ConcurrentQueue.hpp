@@ -31,10 +31,6 @@ namespace concurrentlib {
 			queue->dequeue(data);
 		}
 
-		T dequeue(){
-			return queue->dequeue();
-		}
-
 		size_t size() {
 			return queue->size();
 		}

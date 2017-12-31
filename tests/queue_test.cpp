@@ -1,5 +1,6 @@
 #include"../ThreadPool/detail/ConcurrentQueue_impl.hpp"
 #include"../ThreadPool/ConcurrentQueue.hpp"
+#include"boost\lockfree\queue.hpp"
 #include<queue>
 #include<chrono>
 #include<mutex>
@@ -11,37 +12,36 @@ using namespace std::chrono;
 
 void single_thread() {
 	auto start1 = system_clock::now();
-	ConcurrentQueue<int> queue;
-	for (int i = 0; i < 100; ++i)
-		queue.enqueue(i);
-	
-	for (int i = 0; i < 100; ++i) {
-		int data;
+	ConcurrentQueue<function<void()>> queue;
+	for (int i = 0; i < 1000000; ++i) {
+		function<void()> func;
+		queue.enqueue(func);
+	}
+	for (int i = 0; i < 100000; ++i) {
+		function<void()> data;
 		queue.dequeue(data);
-		std::cout << data << ' ';
+		//std::cout << data << ' ';
 	}
 	
 	std::cout << std::endl;
 	auto end1 = system_clock::now();
 	auto start2 = system_clock::now();
+	mutex mtx;
 	std::queue<function<void()>> queue1;
-	for (int i = 0; i < 100000; ++i) {
-		mutex mtx;
-		lock_guard<mutex> lock(mtx);
-		queue1.emplace([i] {
-			int a = i + 1;
-			cout << a << endl;
-		});
+	for (int i = 0; i < 1000000; ++i) {
+		{
+			lock_guard<mutex> lock(mtx);
+			function<void()> func;
+			queue1.push(func);
+		}
 	}
 	
 	for (int i = 0; i < 100000; ++i) {
 		mutex mtx;
 		lock_guard<mutex> lock(mtx);
-		function<void()> data = queue1.front();
 		queue1.pop();
 		//std::cout << data << ' ';
 	}
-	
 	std::cout << std::endl;
 	auto end2 = system_clock::now();
 	auto dur1 = duration_cast<microseconds>(end1 - start1);
@@ -79,7 +79,7 @@ void multi_thread() {
 
 int main() {
 	cout << "START!!!!" << endl;
-	single_thread();
+	multi_thread();
 	cout << "FINISH!!!!" << endl;
 	return 0;
 }

@@ -57,7 +57,7 @@ namespace concurrentlib {
 				tail.store(head.load(std::memory_order_relaxed), std::memory_order_relaxed);  // init: head = tail
 			}
 			bool isEmpty() {
-				return head.load(std::memory_order_relaxed) == tail.load(std::memory_order_relaxed);
+				return head.load() == tail.load();
 			}
 		};
 
@@ -110,23 +110,6 @@ namespace concurrentlib {
 				});
 			}
 			while (!tryDequeue(data));  // try until succeed.
-		}
-
-		/*
-		  dequeue one element,  block when it is empty.
-		  NOT THAT SAFE than the former one, because it
-		  doesn't provide strong exception-safety-guarantee.
-		*/
-		T dequeue() {
-			if (this->empty()) {
-				std::unique_lock<std::mutex> lock(mtx_empty);
-				cond_empty.wait(lock, [this] {
-					return !this->empty();
-				});
-			}
-			T data;
-			while (!tryDequeue(data));  // try until succeed.
-			return std::move(data);
 		}
 
 		size_t size() const {
@@ -231,6 +214,8 @@ namespace concurrentlib {
 			if (cur_queue.isEmpty()||_head->hold.load(std::memory_order_relaxed))
 				return false;
 			ListNode* _next = tryGetFront(cur_queue,_head);
+			if (!_next)
+				return false;
 			_next->hold.store(true, std::memory_order_release);
 			data = _next->data;
 			// use CAS to update head.

@@ -115,7 +115,6 @@ void concurrentlib::ThreadPool_impl::_launchNew()
 				if (this->closed)  // exit when close.
 					return;
 				tasks.dequeue(task);
-				std::cout << "dequeue succeed=================="<<std::endl;
 				task();  // execute task.
 			}
 		}

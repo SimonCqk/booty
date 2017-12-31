@@ -68,7 +68,6 @@ namespace concurrentlib {
 		tasks.enqueue([=]() {  // `=` mode instead of `&` to avoid ref-dangle.
 			(*task)();
 		});
-		std::cout << "enqueue succeed>>>>>>>>>>>>>>>>>>" << std::endl;
 		return fut;
 	}
 }
