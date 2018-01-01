@@ -6,8 +6,7 @@
 
 using namespace concurrentlib;
 
-int main()
-{
+int main() {
 	std::mutex mtx;
 	using namespace std::literals;
 	using namespace std::chrono;
@@ -36,7 +35,6 @@ int main()
 		thread.join();
 	}*/
 	auto end1 = system_clock::now();
-	std::this_thread::sleep_for(2s);
 	auto start2 = system_clock::now();
 	ThreadPool pool(8);
 	std::vector<std::future<void>> results;
@@ -53,10 +51,10 @@ int main()
 			for (int j = 0; j < 100000; ++j) {
 				test *= j * 123 / 100;
 			}
-			{
-				std::lock_guard<std::mutex> lock(mtx);
-				std::cout << (test*test) % 1000 << ' ';
-			}
+			//{
+			//	std::lock_guard<std::mutex> lock(mtx);
+			//	std::cout << (test*test) % 1000 << ' ';
+			//}
 		})
 		);
 	}
