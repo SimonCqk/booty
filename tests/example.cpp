@@ -11,29 +11,25 @@ int main() {
 	using namespace std::literals;
 	using namespace std::chrono;
 	auto start1 = system_clock::now();
-	/*std::vector<std::thread> threads;
-	for (int i = 0; i < 1000; ++i) {
-		threads.emplace_back([i, &mtx] {
-			{
-				std::lock_guard<std::mutex> lock(mtx);
-				std::cout << " process... " << i;
-			}
-			int test;
-			for (int j = 0; j < 100000; ++j) {
-				test = j * 100 / 123;
-			}
-			for (int j = 0; j < 100000; ++j) {
-				test *= j * 123 / 100;
-			}
-			{
-				std::lock_guard<std::mutex> lock(mtx);
-				std::cout << (test*test) % 1000 << ' ';
-			}
-		});
-	}
-	for (auto& thread : threads) {
-		thread.join();
-	}*/
+	//std::vector<std::thread> threads;
+	//for (int i = 0; i < 1000; ++i) {
+	//	threads.emplace_back([i, &mtx] {
+	//		{
+	//			std::lock_guard<std::mutex> lock(mtx);
+	//			std::cout << " process... " << i;
+	//		}
+	//		int test;
+	//		for (int j = 0; j < 100000; ++j) {
+	//			test = j * 100 / 123;
+	//		}
+	//		for (int j = 0; j < 100000; ++j) {
+	//			test *= j * 123 / 100;
+	//		}
+	//	});
+	//}
+	//for (auto& thread : threads) {
+	//	thread.join();
+	//}
 	auto end1 = system_clock::now();
 	auto start2 = system_clock::now();
 	ThreadPool pool(8);
@@ -51,10 +47,6 @@ int main() {
 			for (int j = 0; j < 100000; ++j) {
 				test *= j * 123 / 100;
 			}
-			//{
-			//	std::lock_guard<std::mutex> lock(mtx);
-			//	std::cout << (test*test) % 1000 << ' ';
-			//}
 		})
 		);
 	}

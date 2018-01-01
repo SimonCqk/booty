@@ -25,7 +25,7 @@ namespace concurrentlib {
 
 		static constexpr size_t kSubQueueNum = 8;
 		static constexpr size_t kPreAllocNodeNum = 512;
-		static constexpr size_t kNextAllocNodeNum = 32;
+		static constexpr size_t kNextAllocNodeNum = 64;
 		static constexpr size_t kMaxContendTryTime = 32;
 
 		// define free-list structure.
@@ -194,27 +194,27 @@ namespace concurrentlib {
 		template<typename Ty>
 		bool tryEnqueue(Ty&& data) {
 			auto& cur_queue = sub_queues[_getEnqueueIndex()];
-			ListNode* tail = acquireOrAllocTail(cur_queue);
-			if (!tail || !tail->hold.load(std::memory_order_acquire) ||  // ensure it has been acquired successfully.
-				tail != cur_queue.tail.load(std::memory_order_acquire))  // ensure tail is the current tail of cur_queue.
+			ListNode* tail = acquireOrAllocTail(cur_queue);  // now tail->hold is true.
+			if (!tail)
 				return false;
+			++_enqueue_idx;
 			tail->data = std::forward<Ty>(data);
 			tail->hold.store(false, std::memory_order_release);
 			// use CAS to update tail node.
 			while (!cur_queue.tail.compare_exchange_weak(tail, tail->next.load(std::memory_order_acquire)));
 			++_size;
-			++_enqueue_idx;
 			return true;
 		}
 
 		bool tryDequeue(T& data) {
 			auto& cur_queue = sub_queues[_getDequeueIndex()];
 			ListNode* _head = cur_queue.head.load(std::memory_order_acquire);
-			if (cur_queue.isEmpty() || _head->hold.load(std::memory_order_relaxed))
+			if (cur_queue.isEmpty() || _head->hold.load(std::memory_order_acquire))
 				return false;
 			ListNode* _next = tryGetFront(cur_queue, _head);
 			if (!_next)
 				return false;
+			++_dequeue_idx;
 			_next->hold.store(true, std::memory_order_release);
 			data = std::move(_next->data);
 			// use CAS to update head.
@@ -222,7 +222,7 @@ namespace concurrentlib {
 			_next->hold.store(false, std::memory_order_release);
 			delete _head; _head = nullptr;
 			--_size;
-			++_dequeue_idx;
+
 			return true;
 		}
 
