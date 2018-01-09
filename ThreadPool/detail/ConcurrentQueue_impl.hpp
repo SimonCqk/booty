@@ -71,7 +71,10 @@ namespace concurrentlib {
 		  get the ref of head element of this queue.
 		*/
 		T& front() {
-			return tryGetFront()->data;
+			ListNode* front = nullptr;
+			while (!front)
+				front = tryGetFront();
+			return front->data;
 		}
 
 		/*
