@@ -22,7 +22,7 @@ void single_thread() {
 		queue.dequeue(data);
 		//std::cout << data << ' ';
 	}
-	
+
 	std::cout << std::endl;
 	auto end1 = system_clock::now();
 	auto start2 = system_clock::now();
@@ -35,7 +35,7 @@ void single_thread() {
 			queue1.push(func);
 		}
 	}
-	
+
 	for (int i = 0; i < 100000; ++i) {
 		mutex mtx;
 		lock_guard<mutex> lock(mtx);
@@ -57,23 +57,24 @@ void single_thread() {
 void multi_thread() {
 	ConcurrentQueue<int> queue;
 	vector<thread> threads;
-	for (int n = 0; n < 500; ++n)
+	for (int n = 0; n < 5; ++n)
 		threads.emplace_back([&queue] {
-		for (int i = 0; i < 10; ++i) {
-			cout << "start to enqueue." << endl;
+		for (int i = 0; i < 1000; ++i) {
 			queue.enqueue(i);
-			cout<< "enqueue successfully." << endl;
 		}
 	});
-	/*vector<thread> other_threads;
-	for (int n = 0; n < 100; ++n)
-		other_threads.emplace_back([&queue] {
-		for (int i = 0; i < 10; ++i)
-			queue.dequeue();
-	});*/
 	for (auto& thread : threads)
 		thread.join();
-	/*for (auto& thread : other_threads)
+	cout << "Finish enqueue and start dequeue." << endl;
+	/*vector<thread> other_threads;
+	for (int n = 0; n < 5; ++n)
+		other_threads.emplace_back([&queue] {
+		for (int i = 0; i < 1000; ++i) {
+			int m;
+			queue.dequeue(m);
+		}
+	});
+	for (auto& thread : other_threads)
 		thread.join();*/
 }
 
