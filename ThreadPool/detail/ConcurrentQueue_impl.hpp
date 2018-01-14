@@ -158,7 +158,8 @@ namespace concurrentlib {
 				return nullptr;
 			}
 			ListNode* _tail = list.tail.load(std::memory_order_acquire);
-			if (!!_tail||!_tail->next.load()) {
+			// queue-capacity is running out.
+			if (!_tail||!_tail->next.load()) {
 				std::atomic_thread_fence(std::memory_order_acq_rel);
 				// preallocate a linked list.
 				ListNode* new_head = new ListNode(T());
@@ -173,20 +174,11 @@ namespace concurrentlib {
 			}
 			for (size_t try_time = 0; !_tail || _tail->hold.load(std::memory_order_acquire); ++try_time) {
 				std::this_thread::yield();
-				_tail = list.tail.load(std::memory_order_acquire); std::cout << "<<<<<<<<<--->"<< (_tail==nullptr) << std::endl;
+				_tail = list.tail.load(std::memory_order_acquire);
 				if (try_time >= kMaxContendTryTime)
 					return nullptr;
 			}
 			_tail->hold.store(true, std::memory_order_release);
-			// queue-capacity is running out.
-			if (!_tail->next.load(std::memory_order_acquire)) {
-				std::atomic_thread_fence(std::memory_order_acq_rel);
-				ListNode* tail_copy = _tail;
-				for (int i = 0; i < kNextAllocNodeNum; ++i) {
-					tail_copy->next.store(new ListNode(T()), std::memory_order_release);
-					tail_copy = tail_copy->next.load(std::memory_order_acquire);
-				}
-			}
 			return _tail;
 		}
 
@@ -201,7 +193,7 @@ namespace concurrentlib {
 				return false;
 			++_enqueue_idx;
 			// use CAS to update tail node.
-			while (!cur_queue.tail.compare_exchange_weak(tail, tail->next.load(std::memory_order_acq_rel)));
+			while (!cur_queue.tail.compare_exchange_weak(tail, tail->next.load()));
 			tail->data = std::forward<Ty>(data);
 			tail->hold.store(false, std::memory_order_release);
 			++_size;
