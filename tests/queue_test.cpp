@@ -66,19 +66,21 @@ void multi_thread() {
 	for (auto& thread : threads)
 		thread.join();
 	cout << "Finish enqueue and start dequeue." << endl;
-	/*vector<thread> other_threads;
-	for (int n = 0; n < 5; ++n)
-		other_threads.emplace_back([&queue] {
-		for (int i = 0; i < 1000; ++i) {
-			int m;
-			queue.dequeue(m);
-		}
-	});
-	for (auto& thread : other_threads)
-		thread.join();*/
+	//vector<thread> other_threads;
+	//for (int n = 0; n < 5; ++n)
+	//	other_threads.emplace_back([&queue] {
+	//	for (int i = 0; i < 100; ++i) {
+	//		int m;
+	//		queue.dequeue(m);
+	//	}
+	//});
+	//for (auto& thread : other_threads)
+	//	thread.join();
 }
 
+
 int main() {
+	using namespace std::chrono;
 	cout << "START!!!!" << endl;
 	multi_thread();
 	cout << "FINISH!!!!" << endl;
