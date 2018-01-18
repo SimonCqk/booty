@@ -151,7 +151,6 @@ namespace concurrentlib {
 			if (!_tail || !_tail->next.load()) {
 				std::atomic_thread_fence(std::memory_order_acq_rel);
 				// preallocate a linked list.
-				
 				ListNode* new_head = new ListNode(T());
 				auto head_copy = new_head;
 				for (int i = 0; i < kNextAllocNodeNum; ++i) {
@@ -183,10 +182,11 @@ namespace concurrentlib {
 			if (!tail || !tail->hold.load(std::memory_order_acquire))
 				return false;
 			++_enqueue_idx;
-			// use CAS to update tail node.
-			while (!cur_queue.tail.compare_exchange_weak(tail, tail->next.load()));
 			tail->data = std::forward<Ty>(data);
 			tail->hold.store(false, std::memory_order_release);
+			// use CAS to update tail node.
+			auto _next = tail->next.load(std::memory_order_seq_cst);
+			while (!cur_queue.tail.compare_exchange_weak(tail, _next));
 			++_size;
 			return true;
 		}

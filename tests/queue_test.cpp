@@ -82,7 +82,11 @@ void multi_thread() {
 int main() {
 	using namespace std::chrono;
 	cout << "START!!!!" << endl;
-	multi_thread();
+	for (int i = 0; i < 10; ++i) {
+		multi_thread();
+		std::this_thread::sleep_for(500ms);
+	}
+
 	cout << "FINISH!!!!" << endl;
 	return 0;
 }
