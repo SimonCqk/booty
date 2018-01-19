@@ -26,7 +26,7 @@ namespace concurrentlib {
 		static constexpr size_t kSubQueueNum = 8;
 		static constexpr size_t kPreAllocNodeNum = 1024;
 		static constexpr size_t kNextAllocNodeNum = 32;
-		static constexpr size_t kMaxContendTryTime = 32;
+		static constexpr size_t kMaxContendTryTime = 16;
 
 		// define free-list structure.
 		struct ListNode
@@ -96,6 +96,13 @@ namespace concurrentlib {
 		  dequeue one element,  block when it is empty.
 		*/
 		void dequeue(T& data) {
+			int count = 0;
+			auto head = sub_queues[0].head.load();
+			while (head) {
+				++count;
+				head = head->next.load();
+			}
+			std::cout << count << std::endl;
 			if (this->empty()) {
 				std::unique_lock<std::mutex> lock(mtx_empty);
 				cond_empty.wait(lock, [this] {
@@ -151,14 +158,16 @@ namespace concurrentlib {
 			if (!_tail || !_tail->next.load()) {
 				std::atomic_thread_fence(std::memory_order_acq_rel);
 				// preallocate a linked list.
-				ListNode* new_head = new ListNode(T());
-				auto head_copy = new_head;
+				if (!_tail)
+					_tail = new ListNode(T());
+				auto head_copy = &_tail;
 				for (int i = 0; i < kNextAllocNodeNum; ++i) {
-					head_copy->next.store(new ListNode(T()), std::memory_order_relaxed);
-					head_copy = head_copy->next.load(std::memory_order_relaxed);
+					(*head_copy)->next.store(new ListNode(T()), std::memory_order_relaxed);
+					auto _next= (*head_copy)->next.load(std::memory_order_relaxed);
+					head_copy = &_next;
 				}
 				// connect new linked list to subqueue.
-				list.tail.store(new_head);
+				list.tail.store(_tail);
 				return nullptr;
 			}
 			for (size_t try_time = 0; !_tail || _tail->hold.load(std::memory_order_acquire); ++try_time) {
@@ -201,6 +210,7 @@ namespace concurrentlib {
 			}
 			ListNode* _next = list.head.load()->next.load(std::memory_order_acquire);
 			for (size_t try_time = 0; !_next || _next->hold.load(std::memory_order_acquire); ++try_time) {
+				std::cout << "--->" << (_next == nullptr) << std::endl;
 				std::this_thread::yield();
 				_next = list.head.load()->next.load(std::memory_order_acquire); // TODO: dead-loop when _next is nullptr.
 				if (try_time >= kMaxContendTryTime)
