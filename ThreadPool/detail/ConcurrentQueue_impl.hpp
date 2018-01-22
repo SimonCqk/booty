@@ -25,7 +25,7 @@ namespace concurrentlib {
 
 		static constexpr size_t kSubQueueNum = 8;
 		static constexpr size_t kPreAllocNodeNum = 1024;
-		static constexpr size_t kNextAllocNodeNum = 32;
+		static constexpr size_t kNextAllocNodeNum = 64;
 		static constexpr size_t kMaxContendTryTime = 16;
 
 		// define free-list structure.
@@ -96,13 +96,6 @@ namespace concurrentlib {
 		  dequeue one element,  block when it is empty.
 		*/
 		void dequeue(T& data) {
-			int count = 0;
-			auto head = sub_queues[0].head.load();
-			while (head) {
-				++count;
-				head = head->next.load();
-			}
-			std::cout << count << std::endl;
 			if (this->empty()) {
 				std::unique_lock<std::mutex> lock(mtx_empty);
 				cond_empty.wait(lock, [this] {
@@ -204,14 +197,13 @@ namespace concurrentlib {
 		  try to get the head element.
 		*/
 		ListNode* tryGetFront(ContLinkedList& list) {
-			if (list.isEmpty()) {
+			if (list.isEmpty()||_deq_th_cnt.load()>1) {
 				std::this_thread::yield();
 				return nullptr;
 			}
 			ListNode* _next = list.head.load()->next.load(std::memory_order_acquire);
 			for (size_t try_time = 0; !_next || _next->hold.load(std::memory_order_acquire); ++try_time) {
-				std::cout << "--->" << (_next == nullptr) << std::endl;
-				std::this_thread::yield();
+				std::this_thread::yield(); std::cout << "======" << std::endl;
 				_next = list.head.load()->next.load(std::memory_order_acquire); // TODO: dead-loop when _next is nullptr.
 				if (try_time >= kMaxContendTryTime)
 					return nullptr;
@@ -221,22 +213,35 @@ namespace concurrentlib {
 			return _next;
 		}
 
+		// delete deperecated nodes and reclaim memory resafely.
+		void reclaimMemory() {  
+			if (_deq_th_cnt.load() <= 1) {
+				for (auto& node : this->reclaim) {
+					delete node; node = nullptr; std::cout << "<<<<<<<<<<<" << std::endl;
+				}
+			}
+		}
+
 		/*
 		  try to dequeue one element (pass to data) and destory it from heap.
 		  REMARK: return by value is not provided since it's not exception safe.
 		*/
 		bool tryDequeue(T& data) {
+			++_deq_th_cnt;
 			auto& cur_queue = sub_queues[_getDequeueIndex()];
 			ListNode* _next = tryGetFront(cur_queue); 
-			if (!_next||!_next->hold.load(std::memory_order_acquire))
+			if (!_next || !_next->hold.load(std::memory_order_acquire)) {
+				--_deq_th_cnt; 
 				return false;
+			}
 			++_dequeue_idx;
 			data = std::move(_next->data); 
 			//update head and return old head.
-			auto old_head = cur_queue.head.exchange(_next, std::memory_order_acq_rel);
+			this->reclaim.push_back(cur_queue.head.exchange(_next, std::memory_order_seq_cst));
+			reclaimMemory();
 			_next->hold.store(false, std::memory_order_release);
-			delete old_head; old_head = nullptr;
 			--_size;
+			--_deq_th_cnt;
 			return true;
 		}
 
@@ -246,9 +251,11 @@ namespace concurrentlib {
 
 		// std::array perform better than std::vector.
 		std::array<ContLinkedList, kSubQueueNum> sub_queues;
+		std::vector<ListNode*> reclaim;
 		asize_t _size;
 		asize_t _enqueue_idx;
 		asize_t _dequeue_idx;
+		asize_t _deq_th_cnt;  // dequeue-thread count
 	};
 
 	template<typename T>
@@ -256,6 +263,7 @@ namespace concurrentlib {
 		_size.store(0, std::memory_order_relaxed);
 		_enqueue_idx.store(0, std::memory_order_relaxed);
 		_dequeue_idx.store(0, std::memory_order_relaxed);
+		_deq_th_cnt.store(0, std::memory_order_relaxed);
 		// pre-allocate kPreAllocNodeNum nodes.
 		for (auto& queue : sub_queues) {
 			queue.head.store(new ListNode(T()), std::memory_order_relaxed);

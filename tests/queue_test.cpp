@@ -69,7 +69,7 @@ void multi_thread() {
 	vector<thread> other_threads;
 	for (int n = 0; n < 5; ++n)
 		other_threads.emplace_back([&queue] {
-		for (int i = 0; i < 1000; ++i) {
+		for (int i = 0; i < 999; ++i) {
 			int m;
 			queue.dequeue(m);
 		}
