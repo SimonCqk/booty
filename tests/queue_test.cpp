@@ -1,5 +1,6 @@
 #include"../ThreadPool/detail/ConcurrentQueue_impl.hpp"
 #include"../ThreadPool/ConcurrentQueue.hpp"
+#include"../ThreadPool/detail/ConcurrentQueue_.hpp"
 #include"boost\lockfree\queue.hpp"
 #include<queue>
 #include<chrono>
@@ -26,19 +27,19 @@ void single_thread() {
 	std::cout << std::endl;
 	auto end1 = system_clock::now();
 	auto start2 = system_clock::now();
-	mutex mtx;
+	std::mutex mtx;
 	std::queue<function<void()>> queue1;
 	for (int i = 0; i < 1000000; ++i) {
 		{
-			lock_guard<mutex> lock(mtx);
+			lock_guard<std::mutex> lock(mtx);
 			function<void()> func;
 			queue1.push(func);
 		}
 	}
 
 	for (int i = 0; i < 100000; ++i) {
-		mutex mtx;
-		lock_guard<mutex> lock(mtx);
+		std::mutex mtx;
+		lock_guard<std::mutex> lock(mtx);
 		queue1.pop();
 		//std::cout << data << ' ';
 	}
@@ -55,7 +56,8 @@ void single_thread() {
 }
 
 void multi_thread() {
-	ConcurrentQueue<int> queue;
+	//ConcurrentQueue<int> queue;
+	ConcurrentQueue_<int> queue;
 	vector<thread> threads;
 	for (int n = 0; n < 5; ++n)
 		threads.emplace_back([&queue] {
@@ -69,7 +71,7 @@ void multi_thread() {
 	vector<thread> other_threads;
 	for (int n = 0; n < 5; ++n)
 		other_threads.emplace_back([&queue] {
-		for (int i = 0; i < 900; ++i) {
+		for (int i = 0; i < 1000; ++i) {
 			int m;
 			queue.dequeue(m);
 		}
