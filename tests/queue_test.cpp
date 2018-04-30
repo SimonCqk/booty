@@ -1,6 +1,6 @@
 #include"../ThreadPool/detail/ConcurrentQueue_impl.hpp"
 #include"../ThreadPool/ConcurrentQueue.hpp"
-#include"../ThreadPool/detail/ConcurrentQueue_.hpp"
+#include"../ThreadPool/detail/ConcurrentQueue_Single.hpp"
 #include"boost\lockfree\queue.hpp"
 #include<queue>
 #include<chrono>
@@ -57,7 +57,7 @@ void single_thread() {
 
 void multi_thread() {
 	//ConcurrentQueue<int> queue;
-	ConcurrentQueue_<int> queue;
+	ConcurrentQueueSingle<int> queue;
 	vector<thread> threads;
 	for (int n = 0; n < 5; ++n)
 		threads.emplace_back([&queue] {
@@ -68,6 +68,7 @@ void multi_thread() {
 	for (auto& thread : threads)
 		thread.join();
 	cout << "Finish enqueue and start dequeue." << endl;
+	std::this_thread::sleep_for(std::chrono::microseconds(500));
 	vector<thread> other_threads;
 	for (int n = 0; n < 5; ++n)
 		other_threads.emplace_back([&queue] {

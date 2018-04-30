@@ -15,10 +15,6 @@ namespace concurrentlib {
 			:queue(std::make_shared<ConcurrentQueue_impl<T>>()) {}
 
 		// sync interfaces with core implementation class.
-		T& front() {
-			queue->front();
-		}
-
 		void enqueue(const T& data) {
 			queue->enqueue(data);
 		}

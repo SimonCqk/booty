@@ -49,7 +49,7 @@ namespace concurrentlib {
 
 	template<class Func, typename... Args>
 	inline decltype(auto)
-		ThreadPool_impl::submitTask(Func&& func, Args&&...args)
+		ThreadPool_impl::submitTask(Func&& func, Args&&...args)  
 	{
 
 		using return_type = typename std::invoke_result_t<Func,Args...>;

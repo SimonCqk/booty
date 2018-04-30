@@ -61,7 +61,6 @@ void concurrentlib::ThreadPool_impl::close()
 		}
 		cond_var.notify_all();  // notify all threads to trigger `return`.
 		for (auto& thread : threads)
-			if (thread.joinable())
 				thread.join();
 	}
 }

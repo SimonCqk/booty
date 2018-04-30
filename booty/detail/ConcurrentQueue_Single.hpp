@@ -1,5 +1,5 @@
-#ifndef _CONCURRENT_QUEUE_IMPL_HPP
-#define _CONCURRENT_QUEUE_IMPL_HPP
+#ifndef _CONCURRENT_LIST_QUEUE_HPP
+#define _CONCURRENT_LIST_QUEUE_HPP
 
 #include<iostream>
 #include<array>
@@ -9,11 +9,12 @@
 #include<condition_variable>
 #include<mutex>
 #include<cassert>
-static std::mutex mtx;
+static std::mutex m;
+
 namespace concurrentlib {
 
 	template<typename T>
-	class ConcurrentQueue_impl {
+	class ConcurrentQueueSingle {
 		struct ListNode;
 		struct ContLinkedList;
 
@@ -23,7 +24,6 @@ namespace concurrentlib {
 		using abool = std::atomic_bool;
 		using aListNode_p = std::atomic<ListNode*>;
 
-		static constexpr size_t kSubQueueNum = 8;
 		static constexpr size_t kPreAllocNodeNum = 1024;
 		static constexpr size_t kNextAllocNodeNum = 64;
 		static constexpr size_t kMaxContendTryTime = 16;
@@ -53,44 +53,57 @@ namespace concurrentlib {
 			aListNode_p head;
 			aListNode_p tail;
 			abool lock;
+			std::mutex mtx_alloc;
+
 			ContLinkedList() {
 				head.store(nullptr, std::memory_order_relaxed);
 				tail.store(head.load(std::memory_order_relaxed), std::memory_order_relaxed);  // init: tail = head
 				lock.store(false, std::memory_order_relaxed);
 			}
 			bool isEmpty() {
-				return head.load() == tail.load();
+				return head.load() == tail.load() || head.load()->next == tail.load();
 			}
 
 			void allocNewNodes() {
-				this->lock.store(true);
-				std::atomic_thread_fence(std::memory_order_acq_rel);
-				ListNode* _tail = this->tail.load();
+				std::lock_guard<std::mutex> lock(this->mtx_alloc);
+				this->lock.store(true,std::memory_order_release);
 				// preallocate a linked list.
-				if (!_tail)
-					_tail = new ListNode(T());
-				ListNode** head_copy = &_tail;
+				ListNode* lhead= new ListNode(T());
+				ListNode** head_copy = &lhead;
+				ListNode* next = nullptr;
 				for (int i = 0; i < kNextAllocNodeNum; ++i) {
 					(*head_copy)->next.store(new ListNode(T()), std::memory_order_relaxed);
-					auto _next = (*head_copy)->next.load(std::memory_order_relaxed);
-					head_copy = &_next;
+					next = (*head_copy)->next.load(std::memory_order_relaxed);
+					head_copy = &next;
 				}
 				// connect new linked list to subqueue.
-				this->tail.store(_tail);
-				this->lock.store(false);
+				this->head.load()->next.store(lhead);
+				next->next.store(this->tail.load());
+				this->lock.store(false,std::memory_order_release);
 			}
 		};
 
 	public:
 		/*
-		  it is a unbounded queue.
+		it is a unbounded queue.
 		*/
-		ConcurrentQueue_impl();
+		ConcurrentQueueSingle();
 
 		/*
-		  enqueue one element.
+		enqueue one element.
 		*/
 		void enqueue(const T& data) {
+			/*{
+				std::lock_guard<std::mutex> lock(m);
+
+				auto head = queue.head.load();
+				int cnt = 0;
+				while (head) {
+					++cnt;
+					head = head->next.load();
+				}
+				std::printf("%d\n", cnt);
+			}*/
 			if (this->empty()) {
 				while (!tryEnqueue(data));  // try until succeed.
 				cond_empty.notify_one();
@@ -100,7 +113,7 @@ namespace concurrentlib {
 		}
 
 		/*
-		  enqueue one element(rvalue).
+		enqueue one element(rvalue).
 		*/
 		void enqueue(T&& data) {
 			if (this->empty()) {
@@ -113,20 +126,20 @@ namespace concurrentlib {
 		}
 
 		/*
-		  dequeue one element,  block when it is empty.
+		dequeue one element,  block when it is empty.
 		*/
 		void dequeue(T& data) {
 			{
-				std::lock_guard<std::mutex> lock(mtx);
-				for (auto&& queue : sub_queues) {
-					auto head = queue.head.load();
-					int cnt = 0;
-					while (head) {
-						++cnt;
-						head = head->next.load();
-					}
-					std::printf("%d\n", cnt);
+				std::lock_guard<std::mutex> lock(m);
+
+				auto head = queue.head.load();
+				int cnt = 0;
+				while (head) {
+					++cnt;
+					head = head->next.load();
 				}
+				std::printf("%d\n", cnt);
+
 			}
 			if (this->empty()) {
 				std::unique_lock<std::mutex> lock(mtx_empty);
@@ -134,7 +147,9 @@ namespace concurrentlib {
 					return !this->empty();
 				});
 			}
-			while (!tryDequeue(data));  // try until succeed.
+			while (!tryDequeue(data))  // try until succeed.
+				if (this->empty())
+					return;
 		}
 
 		size_t size() const {
@@ -144,51 +159,42 @@ namespace concurrentlib {
 			return _size.load() == 0;
 		}
 
-		~ConcurrentQueue_impl() {
-			for (auto& queue : sub_queues) {
-				ListNode* head = queue.head.load(std::memory_order_relaxed);
-				ListNode* next = head->next.load(std::memory_order_relaxed);
+		~ConcurrentQueueSingle() {
+			ListNode* head = queue.head.load(std::memory_order_relaxed);
+			ListNode* next = head->next.load(std::memory_order_relaxed);
+			delete head; head = nullptr;
+			while (next) {
+				head = next;
+				next = next->next.load(std::memory_order_relaxed);
 				delete head; head = nullptr;
-				while (next) {
-					head = next;
-					next = next->next.load(std::memory_order_relaxed);
-					delete head; head = nullptr;
-				}
 			}
 		}
 
 		// forbid copy ctor & copy operator.
-		ConcurrentQueue_impl(const ConcurrentQueue_impl& queue) = delete;
-		ConcurrentQueue_impl& operator=(const ConcurrentQueue_impl& queue) = delete;
+		ConcurrentQueueSingle(const ConcurrentQueueSingle& queue) = delete;
+		ConcurrentQueueSingle& operator=(const ConcurrentQueueSingle& queue) = delete;
 
 	private:
 
-		size_t _getEnqueueIndex() {
-			return _enqueue_idx.load() % kSubQueueNum;
-		}
-
-		size_t _getDequeueIndex() {
-			return _dequeue_idx.load() % kSubQueueNum;
-		}
-
 		// return the tail of linked list.
 		// if nodes are running out, allocate some new nodes.
-		ListNode* acquireOrAllocTail(ContLinkedList& list) {
-			if (list.isEmpty() || list.lock.load()) {
+		ListNode* acquireOrAllocTail() {
+			if (queue.isEmpty() || queue.lock.load()) {
 				std::this_thread::yield();
 				return nullptr;
 			}
-			ListNode* _tail = list.tail.load(std::memory_order_acquire);
+			ListNode* _tail = queue.tail.load(std::memory_order_acquire);
 			// queue-capacity is running out.
 			if (!_tail || !_tail->next.load()) {
-				if (list.lock.load())
+				std::atomic_thread_fence(std::memory_order_acq_rel);
+				if (queue.lock.load())
 					return nullptr;
-				list.allocNewNodes();
+				queue.allocNewNodes();
 				return nullptr;
 			}
 			for (size_t try_time = 0; !_tail || _tail->hold.load(std::memory_order_acquire); ++try_time) {
 				std::this_thread::yield();
-				_tail = list.tail.load(std::memory_order_acquire);
+				_tail = queue.tail.load(std::memory_order_acquire);
 				if (try_time >= kMaxContendTryTime)
 					return nullptr;
 			}
@@ -198,36 +204,35 @@ namespace concurrentlib {
 		}
 
 		/*
-		  try to enqueue, return true if succeed.
+		try to enqueue, return true if succeed.
 		*/
 		template<typename Ty>
 		bool tryEnqueue(Ty&& data) {
-			auto& cur_queue = sub_queues[_getEnqueueIndex()];
-			ListNode* tail = acquireOrAllocTail(cur_queue);  // now tail->hold should be true.
+			ListNode* tail = acquireOrAllocTail();  // now tail->hold should be true.
 			if (!tail || !tail->hold.load(std::memory_order_acquire))
 				return false;
-			++_enqueue_idx;
 			tail->data = std::forward<Ty>(data);
 			tail->hold.store(false, std::memory_order_release);
 			// use CAS to update tail node.
 			auto _next = tail->next.load(std::memory_order_seq_cst);
-			while (!cur_queue.tail.compare_exchange_weak(tail, _next));
+			while (!queue.tail.compare_exchange_weak(tail, _next));
 			++_size;
 			return true;
 		}
 
 		/*
-		  try to get the head element.
+		try to get the head element.
 		*/
-		ListNode* tryGetFront(ContLinkedList& list) {
-			if (list.isEmpty()) {
+		ListNode* tryGetFront() {
+			if (queue.isEmpty()) {
+				std::cout << "!!!!!!!!" << std::endl;
 				std::this_thread::yield();
 				return nullptr;
 			}
-			ListNode* _next = list.head.load()->next.load(std::memory_order_acquire);
+			ListNode* _next = queue.head.load()->next.load(std::memory_order_acquire);
 			for (size_t try_time = 0; !_next || _next->hold.load(std::memory_order_acquire); ++try_time) {
 				std::this_thread::yield();
-				_next = list.head.load()->next.load(std::memory_order_acquire); std::cout << "====" << std::endl; // TODO: dead-loop when _next is nullptr.
+				_next = queue.head.load()->next.load(std::memory_order_acquire); std::cout << (_next == nullptr) << std::endl; // TODO: dead-loop when _next is nullptr.
 				if (try_time >= kMaxContendTryTime)
 					return nullptr;
 			}
@@ -237,20 +242,18 @@ namespace concurrentlib {
 		}
 
 		/*
-		  try to dequeue one element (pass to data) and destory it from heap.
-		  REMARK: return by value is not provided since it's not exception safe.
+		try to dequeue one element (pass to data) and destory it from heap.
+		REMARK: return by value is not provided since it's not exception safe.
 		*/
 		bool tryDequeue(T& data) {
-			auto& cur_queue = sub_queues[_getDequeueIndex()];
-			ListNode* _next = tryGetFront(cur_queue);
+			ListNode* _next = tryGetFront();
 			if (!_next || !_next->hold.load(std::memory_order_acquire)) {
 				return false;
 			}
-			++_dequeue_idx;
 			data = std::move(_next->data);
 			//update head and return old head.
-			auto old_head = cur_queue.head.exchange(_next, std::memory_order_seq_cst);
-			//delete old_head; old_head = nullptr;
+			auto old_head = queue.head.exchange(_next, std::memory_order_seq_cst);
+			delete old_head; old_head = nullptr;
 			_next->hold.store(false, std::memory_order_release);
 			--_size;
 			return true;
@@ -260,31 +263,27 @@ namespace concurrentlib {
 		std::condition_variable cond_empty;
 		std::mutex mtx_empty;
 
-		// std::array perform better than std::vector.
-		std::array<ContLinkedList, kSubQueueNum> sub_queues;
+		ContLinkedList queue;
 		asize_t _size;
-		asize_t _enqueue_idx;
-		asize_t _dequeue_idx;
 	};
 
 	template<typename T>
-	inline ConcurrentQueue_impl<T>::ConcurrentQueue_impl() {
+	inline ConcurrentQueueSingle<T>::ConcurrentQueueSingle() {
 		_size.store(0, std::memory_order_relaxed);
-		_enqueue_idx.store(0, std::memory_order_relaxed);
-		_dequeue_idx.store(0, std::memory_order_relaxed);
 		// pre-allocate kPreAllocNodeNum nodes.
-		for (auto& queue : sub_queues) {
-			queue.head.store(new ListNode(T()), std::memory_order_relaxed);
-			queue.tail.store(new ListNode(T()), std::memory_order_relaxed);
-			auto _tail = queue.tail.load(std::memory_order_relaxed);
-			for (int i = 0; i < kPreAllocNodeNum / kSubQueueNum; ++i) {
-				_tail->next.store(new ListNode(T()), std::memory_order_relaxed);
-				_tail = _tail->next.load(std::memory_order_relaxed);
-			}
-			queue.head.load(std::memory_order_relaxed)->next.store(queue.tail.load(std::memory_order_relaxed), std::memory_order_relaxed);
+		queue.head.store(new ListNode(T()), std::memory_order_relaxed);
+		queue.head.load(std::memory_order_relaxed)->next.store(new ListNode(T()), std::memory_order_relaxed);
+		queue.tail.store(queue.head.load(std::memory_order_relaxed)->next.load(std::memory_order_relaxed), std::memory_order_relaxed);
+		ListNode* _tail = queue.tail.load(std::memory_order_relaxed);
+		ListNode** ptail = &_tail;
+		ListNode* next = nullptr;
+		for (int i = 0; i < kPreAllocNodeNum; ++i) {
+			(*ptail)->next.store(new ListNode(T()), std::memory_order_relaxed);
+			next = (*ptail)->next.load(std::memory_order_relaxed);
+			ptail = &next;
 		}
 	}
 
 } // namespace concurrentlib
 
-#endif // !_CONCURRENT_QUEUE_IMPL_HPP
+#endif // !_CONCURRENT_LIST_QUEUE_HPP
