@@ -19,31 +19,34 @@ namespace booty {
 	class ThreadPool {
 	private:
 		static size_t core_threshold;
-		static constexpr float threshold_factor = 1.5;
+		// threshold of maximum working threads == kThresholdFactor * hardware-threads
+		static constexpr float kThresholdFactor = 1.5;
+		// when num of current working threads * 3 < size of tasks, then launch new thread.
+		static constexpr size_t kLaunchNewByTaskRate = 3;
 		size_t max_thread_count;
 		// threads-manager
 		std::vector<std::thread> threads;
 		// tasks-queue
 		concurrency::UnboundedLockQueue<std::function<void()>> tasks;
 		// for synchronization
-		std::mutex queue_mtx;
 		std::mutex pause_mtx;
+		std::mutex queue_mtx;
 		std::condition_variable cond_var;
 		AtomicBool paused;
 		AtomicBool closed;
 	public:
 		ThreadPool()
 			: max_thread_count(core_threshold) {
-			this->paused.store(false, std::memory_order_relaxed);
-			this->closed.store(false, std::memory_order_relaxed);
+			paused.store(false, std::memory_order_relaxed);
+			closed.store(false, std::memory_order_relaxed);
 
 			// TODO
 		}
 
 		explicit ThreadPool(const size_t& max_threads)
 			:max_thread_count((max_threads > core_threshold ? core_threshold : max_threads)) {
-			this->paused.store(false, std::memory_order_relaxed);
-			this->closed.store(false, std::memory_order_relaxed);
+			paused.store(false, std::memory_order_relaxed);
+			closed.store(false, std::memory_order_relaxed);
 
 			// pre-launch some threads.
 			for (size_t i = 0; i < max_thread_count / 2; ++i) {
@@ -66,27 +69,27 @@ namespace booty {
 			);
 
 			auto fut = task->get_future();
-			if (this->closed || this->paused)
+			if (closed.load(std::memory_order_relaxed) || paused.load(std::memory_order_relaxed))
 				throw std::runtime_error("Do not allow executing tasks after closed or paused.");
 
-			tasks.enqueue([=]() {  // `=` mode instead of `&` to avoid ref-dangle.
+			tasks.enqueue([task]() {  // `=` mode instead of `&` to avoid ref-dangle.
 				(*task)();
 			});
 			return fut;
 		}
 
 		void pause() {
-			this->paused.store(true);
+			paused.store(true);
 		}
 
 		void unpause() {
-			this->paused.store(false);
+			paused.store(false);
 			cond_var.notify_all();
 		}
 
 		void close() {
-			if (!this->closed) {
-				this->closed.store(true);
+			if (!closed.load()) {
+				closed.store(true);
 				cond_var.notify_all();  // notify all threads to trigger `return`.
 				for (auto& thread : threads)
 					thread.join();
@@ -94,30 +97,28 @@ namespace booty {
 		}
 
 		bool isClosed() const {
-			return this->closed;
+			return closed.load();
 		}
 
 		~ThreadPool() {
-			this->close();
+			close();
 		}
 
 	private:
 		void scheduler() {
 			// find new task and notify one free thread to execute.
-			while (!this->closed.load(std::memory_order_relaxed)) {  // auto-exit when close.
-				if (this->paused.load(std::memory_order_relaxed)) {
-					std::unique_lock<std::mutex> pause_lock(this->pause_mtx);
+			while (!closed.load(std::memory_order_relaxed)) {  // exit when close.
+				if (paused.load(std::memory_order_relaxed)) {
+					std::unique_lock<std::mutex> pause_lock(pause_mtx);
 					cond_var.wait(pause_lock, [this] {
-						return !this->paused.load(std::memory_order_relaxed);
+						return !paused.load(std::memory_order_relaxed);
 					});
 				}
-				/*
-				if (tasks.empty())  // if tasks-size > max_threads , reschedule the execution of threads.
-				std::this_thread::yield();
-				*/
-				if (tasks.size() <= threads.size())
+
+				if (threads.size() * kLaunchNewByTaskRate < tasks.size()) {
 					cond_var.notify_one();
-				else if (tasks.size() < max_thread_count) {
+				}
+				else {
 					launchNew();
 					cond_var.notify_one();
 				}
@@ -128,22 +129,22 @@ namespace booty {
 			if (threads.size() < max_thread_count) {
 				threads.emplace_back([this] {
 					while (true) {
-						if (this->paused) {
-							std::unique_lock<std::mutex> pause_lock(this->pause_mtx);
+						if (paused.load(std::memory_order_relaxed)) {
+							std::unique_lock<std::mutex> pause_lock(pause_mtx);
 							cond_var.wait(pause_lock, [this] {
-								return !this->paused;
+								return !paused.load(std::memory_order_relaxed);
 							});
 						}
 						std::function<void()> task;
 						{
-							std::unique_lock<std::mutex> lock(this->queue_mtx);
+							std::unique_lock<std::mutex> lock(queue_mtx);
 							cond_var.wait(lock, [this] {
-								return this->closed || !this->tasks.empty();  // trigger when close or new task comes.
+								return !tasks.empty() || closed.load(std::memory_order_relaxed);
 							});
+							if (closed.load(std::memory_order_relaxed))
+								return;
 						}
-						if (this->closed.load(std::memory_order_relaxed))  // exit when close.
-							return;
-						tasks.dequeue(task);
+						tasks.dequeue(task);  // queue should block when it's empty  
 						task();  // execute task.
 					}
 				}
@@ -153,7 +154,7 @@ namespace booty {
 	};
 
 	/// To limit number of working threads, set threshold as (2 * hardware threads).
-	size_t ThreadPool::core_threshold = ThreadPool::threshold_factor * std::thread::hardware_concurrency();
+	size_t ThreadPool::core_threshold = ThreadPool::kThresholdFactor * std::thread::hardware_concurrency();
 }
 
 #endif // !BOOTY_THREAD_POOL_H

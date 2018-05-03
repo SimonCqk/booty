@@ -1,10 +1,13 @@
-#ifndef BOOTY_UNBOUNDED_LOCK_QUEUE_H
-#define BOOTY_UNBOUNDED_LOCK_QUEUE_H
+#ifndef BOOTY_CONCURRENCY_UNBOUNDEDLOCKQUEUE_H
+#define BOOTY_CONCURRENCY_UNBOUNDEDLOCKQUEUE_H
 
 
 #include<queue>
 #include<mutex>
 #include<atomic>
+#include<condition_variable>
+
+#include<iostream>
 
 namespace booty {
 
@@ -15,36 +18,33 @@ namespace booty {
 		class UnboundedLockQueue {
 		public:
 			UnboundedLockQueue()
-				:this->lock_(this->queue_mtx_) {}
+				:size_(0) {}
 
 			void enqueue(const T& ele) {
-				lock.lock();
+				std::lock_guard<std::mutex> lock(this->queue_mtx_);
 				queue_.push(ele);
 				size_.fetch_add(1, std::memory_order_release);
-				lock.unlock();
 			}
 
 			void enqueue(T&& ele) {
-				lock.lock();
-				queue_.push(std::move(ele));
+				std::lock_guard<std::mutex> lock(this->queue_mtx_);
+				queue_.emplace(std::move(ele));
 				size_.fetch_add(1, std::memory_order_release);
-				lock.unlock();
 			}
 
 			void dequeue(T& recv) {
-				lock.lock();
-				recv = queue_.front();
+				std::lock_guard<std::mutex> lock(this->queue_mtx_);
+				recv = std::move(queue_.front());
 				queue_.pop();
 				size_.fetch_sub(1, std::memory_order_release);
-				lock.unlock();
 			}
 
 			size_t size() {
-				return this->size_t.load(std::memory_order_acquire);
+				return this->size_.load(std::memory_order_relaxed);
 			}
 
 			bool empty() {
-				return this->size_t.load(std::memory_order_acquire) == 0;
+				return this->size_.load(std::memory_order_relaxed) == 0;
 			}
 
 			// forbid copy ctor and copy operator
@@ -54,10 +54,9 @@ namespace booty {
 		private:
 			std::queue<T> queue_;
 			std::mutex queue_mtx_;
-			std::unique_lock<std::mutex> lock_;
 			AtomicSize size_;
 		};
 	}
 }
 
-#endif // !BOOTY_UNBOUNDED_LOCK_QUEUE_H
+#endif // !BOOTY_CONCURRENCY_UNBOUNDEDLOCKQUEUE_H

@@ -1,26 +1,24 @@
-#include"../ThreadPool/detail/ConcurrentQueue_impl.hpp"
-#include"../ThreadPool/ConcurrentQueue.hpp"
-#include"../ThreadPool/detail/ConcurrentQueue_Single.hpp"
-#include"boost\lockfree\queue.hpp"
+#include<iostream>
 #include<queue>
 #include<chrono>
 #include<mutex>
 #include<functional>
+#include"../booty/concurrency/UnboundedLockQueue.hpp"
 
-using namespace concurrentlib;
+using namespace booty;
 using namespace std;
 using namespace std::chrono;
 
 void single_thread() {
 	auto start1 = system_clock::now();
-	ConcurrentQueue<function<void()>> queue;
+	concurrency::UnboundedLockQueue<int> queue;
 	for (int i = 0; i < 1000000; ++i) {
-		function<void()> func;
-		queue.enqueue(func);
+		queue.enqueue(0);
 	}
+
 	for (int i = 0; i < 100000; ++i) {
-		function<void()> data;
-		queue.dequeue(data);
+		int j;
+		queue.dequeue(j);
 		//std::cout << data << ' ';
 	}
 
@@ -28,12 +26,11 @@ void single_thread() {
 	auto end1 = system_clock::now();
 	auto start2 = system_clock::now();
 	std::mutex mtx;
-	std::queue<function<void()>> queue1;
+	std::queue<int> queue1;
 	for (int i = 0; i < 1000000; ++i) {
 		{
 			lock_guard<std::mutex> lock(mtx);
-			function<void()> func;
-			queue1.push(func);
+			queue1.push(i);
 		}
 	}
 
@@ -56,8 +53,7 @@ void single_thread() {
 }
 
 void multi_thread() {
-	//ConcurrentQueue<int> queue;
-	ConcurrentQueueSingle<int> queue;
+	concurrency::UnboundedLockQueue<int> queue;
 	vector<thread> threads;
 	for (int n = 0; n < 5; ++n)
 		threads.emplace_back([&queue] {
@@ -90,7 +86,7 @@ int main() {
 		multi_thread();
 		std::this_thread::sleep_for(500ms);
 	}*/
-	multi_thread();
+	single_thread();
 	cout << "FINISH!!!!" << endl;
 	return 0;
 }
