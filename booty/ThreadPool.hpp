@@ -23,33 +23,25 @@ namespace booty {
 		static constexpr float kThresholdFactor = 1.5;
 		// when num of current working threads * 3 < size of tasks, then launch new thread.
 		static constexpr size_t kLaunchNewByTaskRate = 3;
-		size_t max_thread_count;
+		size_t max_thread_count_;
 		// threads-manager
-		std::vector<std::thread> threads;
+		std::vector<std::thread> threads_;
 		// tasks-queue
-		concurrency::UnboundedLockQueue<std::function<void()>> tasks;
+		concurrency::UnboundedLockQueue<std::function<void()>> tasks_;
 		// for synchronization
-		std::mutex pause_mtx;
-		std::mutex queue_mtx;
-		std::condition_variable cond_var;
-		AtomicBool paused;
-		AtomicBool closed;
+		std::mutex pause_mtx_;
+		std::mutex queue_mtx_;
+		std::condition_variable cond_var_;
+		AtomicBool paused_;
+		AtomicBool closed_;
 	public:
 		ThreadPool()
-			: max_thread_count(core_threshold) {
-			paused.store(false, std::memory_order_relaxed);
-			closed.store(false, std::memory_order_relaxed);
-
-			// TODO
-		}
-
-		explicit ThreadPool(const size_t& max_threads)
-			:max_thread_count((max_threads > core_threshold ? core_threshold : max_threads)) {
-			paused.store(false, std::memory_order_relaxed);
-			closed.store(false, std::memory_order_relaxed);
+			: max_thread_count_(core_threshold) {
+			paused_.store(false, std::memory_order_relaxed);
+			closed_.store(false, std::memory_order_relaxed);
 
 			// pre-launch some threads.
-			for (size_t i = 0; i < max_thread_count / 2; ++i) {
+			for (size_t i = 0; i < max_thread_count_ / 2; ++i) {
 				launchNew();
 			}
 			// lanuch sheduler and running background.
@@ -57,47 +49,61 @@ namespace booty {
 			scheduler.detach();
 		}
 
-		template<class Func, typename... Args>
-		inline decltype(auto) submitTask(Func&& func, Args&&... args) {
-			using return_type = typename std::invoke_result_t<Func, Args...>;
+		explicit ThreadPool(const size_t& max_threads)
+			:max_thread_count_((max_threads > core_threshold ? core_threshold : max_threads)) {
+			paused_.store(false, std::memory_order_relaxed);
+			closed_.store(false, std::memory_order_relaxed);
+
+			// pre-launch some threads.
+			for (size_t i = 0; i < max_thread_count_ / 2; ++i) {
+				launchNew();
+			}
+			// lanuch sheduler and running background.
+			std::thread scheduler = std::thread(&ThreadPool::scheduler, this);
+			scheduler.detach();
+		}
+
+		template<class CondFunc, typename... Args>
+		inline decltype(auto) submitTask(CondFunc&& func, Args&&... args) {
+			using return_type = typename std::invoke_result_t<CondFunc, Args...>;
 
 			auto task = std::make_shared<std::packaged_task<return_type()>>(
-				[func = std::forward<Func>(func),
+				[func = std::forward<CondFunc>(func),
 				args = std::make_tuple(std::forward<Args>(args)...)]()->return_type{
 				return std::apply(func, args);
 			}
 			);
 
 			auto fut = task->get_future();
-			if (closed.load(std::memory_order_relaxed) || paused.load(std::memory_order_relaxed))
-				throw std::runtime_error("Do not allow executing tasks after closed or paused.");
+			if (closed_.load(std::memory_order_relaxed) || paused_.load(std::memory_order_relaxed))
+				throw std::runtime_error("Do not allow executing tasks_ after closed_ or paused_.");
 
-			tasks.enqueue([task]() {  // `=` mode instead of `&` to avoid ref-dangle.
+			tasks_.enqueue([task]() {  // `=` mode instead of `&` to avoid ref-dangle.
 				(*task)();
 			});
 			return fut;
 		}
 
 		void pause() {
-			paused.store(true);
+			paused_.store(true);
 		}
 
 		void unpause() {
-			paused.store(false);
-			cond_var.notify_all();
+			paused_.store(false);
+			cond_var_.notify_all();
 		}
 
 		void close() {
-			if (!closed.load()) {
-				closed.store(true);
-				cond_var.notify_all();  // notify all threads to trigger `return`.
-				for (auto& thread : threads)
+			if (!closed_.load()) {
+				closed_.store(true);
+				cond_var_.notify_all();  // notify all threads to trigger `return`.
+				for (auto& thread : threads_)
 					thread.join();
 			}
 		}
 
 		bool isClosed() const {
-			return closed.load();
+			return closed_.load();
 		}
 
 		~ThreadPool() {
@@ -107,44 +113,44 @@ namespace booty {
 	private:
 		void scheduler() {
 			// find new task and notify one free thread to execute.
-			while (!closed.load(std::memory_order_relaxed)) {  // exit when close.
-				if (paused.load(std::memory_order_relaxed)) {
-					std::unique_lock<std::mutex> pause_lock(pause_mtx);
-					cond_var.wait(pause_lock, [this] {
-						return !paused.load(std::memory_order_relaxed);
+			while (!closed_.load(std::memory_order_relaxed)) {  // exit when close.
+				if (paused_.load(std::memory_order_relaxed)) {
+					std::unique_lock<std::mutex> pause_lock(pause_mtx_);
+					cond_var_.wait(pause_lock, [this] {
+						return !paused_.load(std::memory_order_relaxed);
 					});
 				}
 
-				if (threads.size() * kLaunchNewByTaskRate < tasks.size()) {
-					cond_var.notify_one();
+				if (threads_.size() * kLaunchNewByTaskRate < tasks_.size()) {
+					cond_var_.notify_one();
 				}
 				else {
 					launchNew();
-					cond_var.notify_one();
+					cond_var_.notify_one();
 				}
 			}
 		}
 
 		void launchNew() {
-			if (threads.size() < max_thread_count) {
-				threads.emplace_back([this] {
+			if (threads_.size() < max_thread_count_) {
+				threads_.emplace_back([this] {
 					while (true) {
-						if (paused.load(std::memory_order_relaxed)) {
-							std::unique_lock<std::mutex> pause_lock(pause_mtx);
-							cond_var.wait(pause_lock, [this] {
-								return !paused.load(std::memory_order_relaxed);
+						if (paused_.load(std::memory_order_relaxed)) {
+							std::unique_lock<std::mutex> pause_lock(pause_mtx_);
+							cond_var_.wait(pause_lock, [this] {
+								return !paused_.load(std::memory_order_relaxed);
 							});
 						}
 						std::function<void()> task;
 						{
-							std::unique_lock<std::mutex> lock(queue_mtx);
-							cond_var.wait(lock, [this] {
-								return !tasks.empty() || closed.load(std::memory_order_relaxed);
+							std::unique_lock<std::mutex> lock(queue_mtx_);
+							cond_var_.wait(lock, [this] {
+								return !tasks_.empty() || closed_.load(std::memory_order_relaxed);
 							});
-							if (closed.load(std::memory_order_relaxed))
+							if (closed_.load(std::memory_order_relaxed))
 								return;
 						}
-						tasks.dequeue(task);  // queue should block when it's empty  
+						tasks_.dequeue(task);  // queue should block when it's empty  
 						task();  // execute task.
 					}
 				}

@@ -96,7 +96,7 @@ namespace booty {
 		///   producer-consumer balance or favorable timing for avoiding
 		///   costly blocking.
 
-		template<typename T, bool SingleProducer, bool SingleConsumer,bool MayBlock
+		template<typename T, bool SingleProducer, bool SingleConsumer,bool MayBlock,
 			size_t LogSegmentSize = 8, size_t LogAlign = std::log2(std::hardware_constructive_interference_size),
 			template<typename> class Atom = std::atomic>
 		class UnboundedQueue {
