@@ -1,3 +1,6 @@
+# The Old Version README.
+# Left to be UPDATED.
+
 # Thread Pool
 
 > This is a tiny thread pool embraced by C++11/14/17 features. So a c++17-supported complier is required for compling. Enable new features by add `-std=c++17 (g++/clang++)` or `/std:c++17 (vc++)`.
