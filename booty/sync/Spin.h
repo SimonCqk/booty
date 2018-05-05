@@ -1,35 +1,24 @@
 /*
-* This is a derivative snippet of Facebook::folly, under Apache Lisence.
-* Indention:
-* - Recurrent the design idea of seniors and rewrite some details to adapt
-*   personal considerations as components of booty.
-*
-* @Simoncqk - 2018.05.02
-*/
-#ifndef BOOTY_CONCURRENCY_SPIN_H
-#define BOOTY_CONCURRENCY_SPIN_H
+ * This is a derivative snippet of Facebook::folly, under Apache Lisence.
+ * Indention:
+ * - Recurrent the design idea of seniors and rewrite some details to adapt
+ *   personal considerations as components of booty.
+ *
+ * @Simoncqk - 2018.05.02
+ *
+ */
+#ifndef BOOTY_SYNC_SPIN_H
+#define BOOTY_SYNC_SPIN_H
 
 #include <algorithm>
 #include <chrono>
 #include <thread>
 
-extern void _mm_pause(void);
+#include"../Asm.h"
 
 namespace booty {
 
-	inline void asm_volatile_pause() {
-#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
-		::_mm_pause();
-#elif defined(__i386__) || FOLLY_X64
-		asm volatile("pause");
-#elif FOLLY_AARCH64 || defined(__arm__)
-		asm volatile("yield");
-#elif FOLLY_PPC64
-		asm volatile("or 27,27,27");
-#endif
-	}
-
-	namespace concurrency {
+	namespace sync {
 
 		/// WaitOptions
 		///
@@ -139,4 +128,4 @@ namespace booty {
 	}
 }
 
-#endif // !BOOTY_CONCURRENCY_SPIN_H
+#endif // !BOOTY_SYNC_SPIN_H

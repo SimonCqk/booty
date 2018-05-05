@@ -11,8 +11,6 @@
 
 namespace booty {
 
-	using AtomicSize = std::atomic<size_t>;
-
 	namespace concurrency {
 
 		/// UnboundedLockQueue provides thread-safe operations with STL lock.
@@ -22,14 +20,12 @@ namespace booty {
 		template<typename T>
 		class UnboundedLockQueue {
 		public:
-			UnboundedLockQueue()
-				:size_(0) {}
+			UnboundedLockQueue() {}
 
 			/* enqueue one element(lvalue). */
 			void enqueue(const T& ele) {
 				std::lock_guard<std::mutex> lock(this->queue_mtx_);
 				queue_.push(ele);
-				size_.fetch_add(1, std::memory_order_release);
 			}
 
 			/*
@@ -38,7 +34,6 @@ namespace booty {
 			void enqueue(T&& ele) {
 				std::lock_guard<std::mutex> lock(this->queue_mtx_);
 				queue_.emplace(std::move(ele));
-				size_.fetch_add(1, std::memory_order_release);
 			}
 
 			/*
@@ -51,17 +46,16 @@ namespace booty {
 				std::lock_guard<std::mutex> lock(this->queue_mtx_);
 				recv = std::move(queue_.front());
 				queue_.pop();
-				size_.fetch_sub(1, std::memory_order_release);
 			}
 
 			/* get size of queue */
-			size_t size() {
-				return this->size_.load(std::memory_order_relaxed);
+			size_t size() const {
+				return queue_.size();
 			}
 
 			/* judge if queue is empty */
-			bool empty() {
-				return this->size_.load(std::memory_order_relaxed) == 0;
+			bool empty() const {
+				return queue_.empty();
 			}
 
 			/* forbid copy ctor and copy operator */
@@ -71,9 +65,6 @@ namespace booty {
 		private:
 			std::queue<T> queue_;
 			std::mutex queue_mtx_;
-			// use atomic var to avoid construct and destruct a lock everytime when
-			// size() and empty() was invoked.
-			AtomicSize size_;
 		};
 	}
 }

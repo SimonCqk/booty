@@ -5,6 +5,7 @@
  *   personal considerations as components of booty.
  *
  * @Simoncqk - 2018.05.02
+ *
  */
 #ifndef BOOTY_CONCURRENCY_UNBOUNDEDQUEUE_H
 #define BOOTY_CONCURRENCY_UNBOUNDEDQUEUE_H
