@@ -16,6 +16,8 @@
 #include<array>
 #include<cassert>
 
+#include"../Unit.h"
+
 namespace booty {
 
 	namespace parking_lot_detail {
@@ -92,7 +94,8 @@ namespace booty {
 				else {  // bucket is empty.
 					tail_ = head_ = node;
 				}
-				count_.fetch_add(1, std::memory_order_relaxed);
+				//  no count_.fetch_add() here. The corresponding op is done in 
+				//  ParkingLot::park_until() down below.
 			}
 
 			void erase(WaitNodeBase* node) {
@@ -198,66 +201,9 @@ namespace booty {
 				std::chrono::steady_clock::time_point::max());
 		}
 
-		template <
-			typename Key,
-			typename D,
-			typename ToPark,
-			typename PreWait,
-			typename Clock,
-			typename Duration>
-			ParkResult park_until(
-				const Key bits,
-				D&& data,
-				ToPark&& toPark,
-				PreWait&& preWait,
-				std::chrono::time_point<Clock, Duration> deadline) {
-			auto key = std::hash<uint64_t>()(uint64_t(bits));
-			auto& bucket = parking_lot_detail::Bucket::bucketFor(key);
-			WaitNode node(key, lot_id_, std::forward<D>(data));
-
-			{
-				// A: Must be seq_cst.  Matches B.
-				bucket.count_.fetch_add(1, std::memory_order_seq_cst);
-
-				std::unique_lock<std::mutex> bucketLock(bucket.mutex_);
-
-				if (!std::forward<ToPark>(toPark)()) {
-					bucketLock.unlock();
-					bucket.count_.fetch_sub(1, std::memory_order_relaxed);
-					return ParkResult::Skip;
-				}
-
-				bucket.push_back(&node);
-			} // bucketLock scope
-
-			std::forward<PreWait>(preWait)();
-
-			auto status = node.wait(deadline);
-
-			if (status == std::cv_status::timeout) {
-				// it's not really a timeout until we unlink the unsignaled node
-				std::lock_guard<std::mutex> bucketLock(bucket.mutex_);
-				if (!node.signaled()) {
-					bucket.erase(&node);
-					return ParkResult::Timeout;
-				}
-			}
-
-			return ParkResult::Unpark;
-		}
-
-		template <
-			typename Key,
-			typename D,
-			typename ToPark,
-			typename PreWait,
-			typename Rep,
-			typename Period>
-			ParkResult park_for(
-				const Key key,
-				D&& data,
-				ToPark&& toPark,
-				PreWait&& preWait,
+		template <typename Key, typename D, typename ToPark, typename PreWait,
+			typename Rep, typename Period>
+			ParkResult park_for(const Key key, D&& data, ToPark&& toPark, PreWait&& preWait,
 				std::chrono::duration<Rep, Period>& timeout) {
 			return park_until(
 				key,
@@ -267,10 +213,49 @@ namespace booty {
 				timeout + std::chrono::steady_clock::now());
 		}
 
+		template <typename Key, typename D, typename ToPark, typename PreWait,
+			typename Clock, typename Duration>
+			ParkResult park_until(const Key bits, D&& data, ToPark&& toPark, PreWait&& preWait,
+				std::chrono::time_point<Clock, Duration> deadline) {
+			auto key = std::hash<uint64_t>()(uint64_t(bits));
+			auto& bucket = parking_lot_detail::Bucket::bucketFor(key);
+			WaitNode node(key, lot_id_, std::forward<D>(data));
+
+			{
+				// A: Must be seq_cst.  Matches B.
+				bucket.count_.fetch_add(1, std::memory_order_seq_cst);
+
+				std::unique_lock<std::mutex> bucket_lock(bucket.mutex_);
+
+				if (!std::forward<ToPark>(toPark)()) {
+					bucket_lock.unlock();
+					bucket.count_.fetch_sub(1, std::memory_order_relaxed);
+					return ParkResult::Skip;
+				}
+
+				bucket.push_back(&node);
+			} // bucket_lock scope
+
+			std::forward<PreWait>(preWait)();
+
+			auto status = node.wait(deadline);
+
+			if (status == std::cv_status::timeout) {
+				// it's not really a timeout until we unlink the unsignaled node
+				std::lock_guard<std::mutex> bucketLock(bucket.mutex_);
+				if (!node.isSignaled()) {
+					bucket.erase(&node);
+					return ParkResult::Timeout;
+				}
+			}
+
+			return ParkResult::Unpark;
+		}
+
 		/*
 		* Unpark API
 		*
-		* Key is the same uniqueaddress used in park(), and is used as a
+		* Key is the same unique address used in park(), and is used as a
 		* hash key for lookup of waiters.
 		*
 		* Unparker is a function that is given the Data parameter, and
@@ -291,7 +276,7 @@ namespace booty {
 
 			std::lock_guard<std::mutex> bucketLock(bucket.mutex_);
 
-			for (auto iter = bucket.head_; iter != nullptr;) {
+			for (auto iter = bucket.head_; iter;) {
 				auto node = static_cast<WaitNode*>(iter);
 				iter = iter->next_;
 				if (node->key_ == key && node->lot_id_ == lot_id_) {
