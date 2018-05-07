@@ -15,6 +15,7 @@
 #include<cassert>
 
 #include"./Spin.h"
+#include"./Futex.h"
 
 namespace booty {
 
@@ -61,31 +62,31 @@ namespace booty {
 
 		template<bool MayBlock, template<typename> class Atom = std::atomic>
 		class SaturatingSemaphore {
-			enum class State{
-				NOT_READY,
-				READY,
-				BLOCKED
+			enum State :uint32_t {
+				NOT_READY = 0,  // no available resource
+				READY = 1,  // resource is ready
+				BLOCKED = 2  // two competitor race for resource
 			};
-			
+
 		public:
 			inline static WaitOptions wait_options() {
 				return {};  // same as WaitOptions(), but reduce one copy.
 			}
 
 			constexpr SaturatingSemaphore()noexcept
-				:state_(State::NOT_READY){}
+				: state_(NOT_READY) {}
 
 			inline bool ready() const noexcept {
-				return state_.load(std::memory_order_acquire) == State::READY;
+				return state_.load(std::memory_order_acquire) == READY;
 			}
 
 			void reset() noexcept {
-				state_.store(State::NOT_READY, std::memory_order_release);
+				state_.store(NOT_READY, std::memory_order_release);
 			}
 
 			inline void post() noexcept {
 				if (!MayBlock) {
-					state_.store(State::READY, std::memory_order_release);
+					state_.store(READY, std::memory_order_release);
 				}
 				else {
 					postFastWaiterMayBlock();
@@ -101,45 +102,45 @@ namespace booty {
 				return ready();
 			}
 
-			template<typename Clock,typename Duration>
-			inline bool try_wait_until(const std::chrono::time_point<Clock,Duration>& ddl,
-				const WaitOptions& opt=wait_options()) noexcept {
+			template<typename Clock, typename Duration>
+			inline bool try_wait_until(const std::chrono::time_point<Clock, Duration>& ddl,
+				const WaitOptions& opt = wait_options()) noexcept {
 				if (try_wait())
 					return true;
-				return tryWaitSlow(ddl,opt);
+				return tryWaitSlow(ddl, opt);
 			}
 
-			template<class Rep,class Period>
+			template<class Rep, class Period>
 			inline bool try_wait_for(const std::chrono::duration<Rep, Period>& duration,
-				const WaitOptions& opt=wait_options())noexcept {
+				const WaitOptions& opt = wait_options())noexcept {
 				if (try_wait())
 					return true;
 				auto ddl = std::chrono::steady_clock::now() + duration;
-				return tryWaitSlow(ddl,opt);
+				return tryWaitSlow(ddl, opt);
 			}
 
 			~SaturatingSemaphore() {}
 
 		private:
 			inline void postFastWaiterMayBlock() noexcept {
-				State before = State::NOT_READY;
-				if (state_.compare_exchange_strong(before, State::READY, std::memory_order_release, std::memory_order_relaxed))
+				uint32_t before = NOT_READY;
+				if (state_.compare_exchange_strong(before, READY, std::memory_order_release, std::memory_order_relaxed))
 					return;
 				postSlowWaiterMayBlock(before);
 			}
 
-			void postSlowWaiterMayBlock(const State& state_before) noexcept {
+			void postSlowWaiterMayBlock(uint32_t state_before) noexcept {
 				while (true) {
-					if (state_before == State::NOT_READY) {
-						if (state_.compare_exchange_strong(state_before, State::READY,
+					if (state_before == NOT_READY) {
+						if (state_.compare_exchange_strong(state_before, READY,
 							std::memory_order_release, std::memory_order_relaxed)) {
 							return;
 						}
 					}
-					if (state_before == State::READY) { // Only if multiple posters
+					if (state_before == READY) { // Only if multiple posters
 						// The reason for not simply returning (without the following
 						// steps) is to prevent the following case:
-					    //
+						//
 						//  T1:             T2:             T3:
 						//  local1.post();  local2.post();  global.wait();
 						//  global.post();  global.post();  global.reset();
@@ -164,27 +165,66 @@ namespace booty {
 
 						/* sync all threads util reach this fence */
 						std::atomic_thread_fence(std::memory_order_seq_cst);
-						if (state_.load(std::memory_order_relaxed) == State::READY) {
+						if (state_.load(std::memory_order_relaxed) == READY) {
 							return;
 						}
 						continue;
 					}
-					assert(state_before == State::BLOCKED);
-					if (state_.compare_exchange_strong(state_before, State::READY,
+					assert(state_before == BLOCKED);
+					if (state_.compare_exchange_strong(state_before, READY,
 						std::memory_order_release, std::memory_order_relaxed)) {
-						// TODO: state.futexWake();
+						state_.futexWake();
 						return;
 					}
 				}
 			}
 
-			template<typename Clock,typename Duration>
+			template<typename Clock, typename Duration>
 			bool tryWaitSlow(const std::chrono::time_point<Clock, Duration>& ddl,
 				const WaitOptions& opt) noexcept {
-
+				switch (spin_pause_until(ddl, opt, [=] {return ready(); })) {
+				case spin_result::success:
+					return true;
+				case spin_result::timeout:
+					return false;
+				case spin_result::advance:
+					break;
+				}
+				if (!MayBlock) {
+					switch (spin_yield_until(ddl, [=] {return ready(); })) {
+					case spin_result::success:
+						return true;
+					case spin_result::timeout:
+						return false;
+					case spin_result::advance:
+						break;
+					}
+				}
+				auto before = state_.load(std::memory_order_acquire);
+				while (before == NOT_READY &&
+					!state_.compare_exchange_strong(
+						before, BLOCKED,
+						std::memory_order_relaxed,
+						std::memory_order_relaxed)) {
+					if (before == READY) {
+						std::atomic_thread_fence(std::memory_order_acquire);
+						return true;
+					}
+				}
+				while (true) {
+					auto rv = state_.futexWaitUntil(BLOCKED, ddl);
+					if (rv == FutexResult::TIMEDOUT) {
+						assert(ddl != (std::chrono::time_point<Clock, Duration>::max()));
+						return false;
+					}
+				}
+				if (ready())
+					return true;
 			}
 
-			Atom<State> state_;
+			// wrapped by Futex make it performs better than pure std::mutex.
+			// And more than a atomic variable.
+			Futex<Atom> state_;
 		};
 	}
 }
