@@ -282,7 +282,7 @@ namespace booty {
 					auto node = static_cast<WaitNode*>(iter);
 					iter = iter->next_;
 					if (node->key_ == key && node->lot_id_ == lot_id_) {
-						auto result = std::forward<Func>(func)(node->data_);
+						auto result = std::forward<Unparker>(func)(node->data_);
 						if (result == UnparkControl::RemoveBreak ||
 							result == UnparkControl::RemoveContinue) {
 							// we unlink, but waiter destroys the node

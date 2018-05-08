@@ -212,6 +212,12 @@ namespace booty {
 					}
 				}
 				while (true) {
+					/* 
+					 *  Original folly invokes: detail::MemoryIdler::futexWaitUntil(state_, BLOCKED, deadline),
+					 *  which is almost equivalent to fut.futexWaitUntil() with some slightly differences.
+					 *  I've tried hard to dive into the details but all those underlying implementations are 
+					 *  obscure, so I have to give it up.
+					 */
 					auto rv = state_.futexWaitUntil(BLOCKED, ddl);
 					if (rv == FutexResult::TIMEDOUT) {
 						assert(ddl != (std::chrono::time_point<Clock, Duration>::max()));
