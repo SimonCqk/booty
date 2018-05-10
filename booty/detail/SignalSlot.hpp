@@ -18,24 +18,24 @@ namespace booty {
 	namespace detail {
 
 		template<typename CallBack>
-		class SlotImpl;
+		struct SlotImpl;
+
+		using WrappedCallBack = std::function<void()>;
 
 		template<typename CallBack>
 		struct SignalImpl {
 
 			using Slots = std::vector<std::weak_ptr<SlotImpl<CallBack>>>;
 
-		public:
 			SignalImpl()
 				:slots_(new Slots) {}
 
-			/* when !slot_.unique(), more than one readers are visiting slots,
+			/* when slot_.unique() failed, more than one readers are visiting slots,
 			 * and every reader has its own stack-obj to reach slots, so what we
 			 * have to do is to make a hole copy and reset reference-count, then
 			 * it is to be safe to write on new slots_.
 			 */
 			void copyOnWrite() {
-
 				if (!slots_.unique()) {
 					slots_.reset(new Slots(*slots_));
 				}
@@ -47,8 +47,7 @@ namespace booty {
 				std::lock_guard<std::mutex> lock{ mtx_ };
 				copyOnWrite();
 				Slots& copy(*slots_);
-				for (auto beg = copy.begin(), last = copy.end();
-					beg != last;) {
+				for (auto beg = copy.begin(); beg != copy.end();) {
 					if (beg->expired()) {
 						beg = copy.erase(beg);
 					}
@@ -59,35 +58,36 @@ namespace booty {
 
 			SignalImpl(const SignalImpl&) = delete;
 			SignalImpl& operator=(const SignalImpl&) = delete;
-		private:
+
 			std::mutex mtx_;
 			std::shared_ptr<Slots> slots_;
 		};
 
 		template<typename CallBack>
-		class SlotImpl {
+		struct SlotImpl {
 
 			using CoreData = SignalImpl<CallBack>;
 
-		public:
-			explicit SlotImpl(const std::shared_ptr<CoreData>& data, CallBack&& cb)
+			explicit SlotImpl(const std::shared_ptr<CoreData>& data, WrappedCallBack&& cb)
 				:data_(data), cb_(cb), is_tied_(false) {}
 
-			explicit SlotImpl(const std::shared_ptr<CoreData>& data, CallBack&& cb,
+			explicit SlotImpl(const std::shared_ptr<CoreData>& data, WrappedCallBack&& cb,
 				const std::shared_ptr<void>& tie)
 				:data_(data), cb_(cb), tie_(tie), is_tied_(true) {}
 
 			~SlotImpl() noexcept {
-				std::shared_ptr<Data> data(data_.lock());
+				std::cout << "Do clean" << std::endl;
+				std::shared_ptr<CoreData> data(data_.lock());
 				if (data) {
+					std::cout << "Reallllllllllll clean!!!!!" << std::endl;
 					data->clean();
 				}
 			}
 
 			SlotImpl(const SlotImpl&) = delete;
 			SlotImpl& operator=(const SlotImpl&) = delete;
-		private:
-			CallBack cb_;
+
+			WrappedCallBack cb_;
 			std::weak_ptr<CoreData> data_;
 			std::weak_ptr<void> tie_;
 			bool is_tied_;
@@ -107,7 +107,7 @@ namespace booty {
 	template<typename Return, typename... Args>
 	class Signal<Return(Args...)> {
 
-		using CallBack = std::function<void(Args...)>;
+		using CallBack = std::function<Return(Args...)>;
 		using SignalImpl = detail::SignalImpl<CallBack>;
 		using SlotImpl = detail::SlotImpl<CallBack>;
 		using Tie = std::shared_ptr<void>;
@@ -124,6 +124,7 @@ namespace booty {
 				std::bind(std::forward<CallBack>(func), std::forward<Args>(args)...)
 			));
 			add(slot_impl);
+			std::cout << "-------" << impl_->slots_->size() << std::endl;
 			return slot_impl;
 		}
 
@@ -149,12 +150,13 @@ namespace booty {
 				std::lock_guard<std::mutex> lock{ impl.mtx_ };
 				slots = impl.slots_;
 			}
+
 			typename SignalImpl::Slots& in_slots(*slots);
-			for (auto beg = in_slots.cbegin(), last = in_slots.cend();
-				beg != last; ++beg) {
+
+			for (auto beg = in_slots.cbegin(); beg != in_slots.cend(); ++beg) {
 				auto slot_impl = beg->lock();
 				if (slot_impl) {
-					if (slot_impl->is_tied_&&slot_impl.tie_.lock())
+					if (slot_impl->is_tied_&&slot_impl->tie_.lock())
 						slot_impl->cb_();
 					else
 						slot_impl->cb_();
@@ -166,20 +168,16 @@ namespace booty {
 		Signal& operator=(const Signal&) = delete;
 	private:
 		void add(const std::shared_ptr<SlotImpl>& slot) {
-			SignalImpl& impl(*impl_);
+			SignalImpl& impl{ *impl_ };
 			{
 				std::lock_guard<std::mutex> lock{ impl.mtx_ };
 				impl.copyOnWrite();
-				impl.slots_->push_back(slot);
+				impl.slots_->emplace_back(slot);
 			}
 		}
 
 		const std::shared_ptr<SignalImpl> impl_;
 	};
-
-
-
-
 }  // namespace booty
 
 #endif // !BOOTY_DETAIL_SIGNALSLOT_HPP
