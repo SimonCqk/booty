@@ -76,10 +76,8 @@ namespace booty {
 				:data_(data), cb_(cb), tie_(tie), is_tied_(true) {}
 
 			~SlotImpl() noexcept {
-				std::cout << "Do clean" << std::endl;
 				std::shared_ptr<CoreData> data(data_.lock());
 				if (data) {
-					std::cout << "Reallllllllllll clean!!!!!" << std::endl;
 					data->clean();
 				}
 			}
@@ -104,6 +102,23 @@ namespace booty {
 	template<typename Signature>
 	class Signal;
 
+	/// Connect one signal with multi-slots, you may invoke all these connected
+	/// functors at one time manually, but ATTENTION: the return value can not be 
+	/// get, so use it with a call-back mechanism.
+	///
+	/// Use it like:
+	/// - Signal<void()> signal;
+	///   Slot s1 = signal.connect([](){ std::cout << "Hello Booty.\n"; });
+	///   ...
+	///   signal.call();
+	/// - Signal<void(int)> signal;
+	///   Slot s1 = signal.connect([](int x){ std::cout << "Hello x:" << x; });
+	///   ...
+	///   signal.call();
+	/// ATTENTION:
+	/// - There must be a receiver of return value of Signal::connect(), which is a 
+	///   Slot object, or the connect will be invalid and no response when call() is
+	///   invoked.
 	template<typename Return, typename... Args>
 	class Signal<Return(Args...)> {
 
@@ -124,7 +139,6 @@ namespace booty {
 				std::bind(std::forward<CallBack>(func), std::forward<Args>(args)...)
 			));
 			add(slot_impl);
-			std::cout << "-------" << impl_->slots_->size() << std::endl;
 			return slot_impl;
 		}
 

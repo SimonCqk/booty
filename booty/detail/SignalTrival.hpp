@@ -55,6 +55,9 @@ namespace booty {
 				std::lock_guard<std::shared_mutex> lock{ smtx_ };
 				slots_.clear();
 			}
+
+			SignalTrival(const SignalTrival&) = delete;
+			SignalTrival& operator=(const SignalTrival&) = delete;
 		private:
 			mutable std::shared_mutex smtx_;
 			std::vector<Slot> slots_;
