@@ -26,14 +26,16 @@ namespace booty {
 			void enqueue(const T& ele) {
 				std::lock_guard<std::shared_mutex> lock(queue_mtx_);
 				queue_.push(ele);
+				if (queue_.size() == 1) // queue is empty before push().
+					cond_.notify_one();
 			}
 
-			/*
-			  enqueue one element(rvalue).
-			*/
+			/* enqueue one element(rvalue). */
 			void enqueue(T&& ele) {
 				std::lock_guard<std::shared_mutex> lock(queue_mtx_);
 				queue_.emplace(std::move(ele));
+				if (queue_.size() == 1) // queue is empty before push().
+					cond_.notify_one();
 			}
 
 			/*
@@ -43,7 +45,12 @@ namespace booty {
 			  as it mentioned above: block measures should be adopted by caller/invoker.
 			*/
 			void dequeue(T& recv) {
-				std::lock_guard<std::shared_mutex> lock(queue_mtx_);
+				std::unique_lock<std::shared_mutex> lock(queue_mtx_);
+				if (queue_.empty()) {
+					cond_.wait(lock, [this] {
+						return !queue_.empty();
+					});
+				}
 				recv = std::move(queue_.front());
 				queue_.pop();
 			}
@@ -67,6 +74,7 @@ namespace booty {
 		private:
 			std::queue<T> queue_;
 			std::shared_mutex queue_mtx_;
+			std::condition_variable cond_;
 		};
 	}
 }

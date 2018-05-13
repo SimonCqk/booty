@@ -9,8 +9,8 @@
 #include<functional>
 #include<utility>
 #include<memory>
-
-#include"concurrency/UnboundedLockQueue.hpp"
+#include<deque>
+//#include"concurrency/UnboundedLockQueue.hpp"
 
 namespace booty {
 
@@ -27,7 +27,7 @@ namespace booty {
 		// threads-manager
 		std::vector<std::thread> threads_;
 		// tasks-queue
-		concurrency::UnboundedLockQueue<std::function<void()>> tasks_;
+		std::deque<std::function<void()>> tasks_;
 		// for synchronization
 		std::mutex pause_mtx_;
 		std::mutex queue_mtx_;
@@ -78,7 +78,7 @@ namespace booty {
 			if (closed_.load(std::memory_order_relaxed) || paused_.load(std::memory_order_relaxed))
 				throw std::runtime_error("Do not allow executing tasks_ after closed_ or paused_.");
 
-			tasks_.enqueue([task]() {  // `=` mode instead of `&` to avoid ref-dangle.
+			tasks_.emplace_back([task]() {  // `=` mode instead of `&` to avoid ref-dangle.
 				(*task)();
 			});
 			return fut;
@@ -147,10 +147,13 @@ namespace booty {
 							cond_var_.wait(lock, [this] {
 								return !tasks_.empty() || closed_.load(std::memory_order_relaxed);
 							});
-							if (closed_.load(std::memory_order_relaxed))
+							if (closed_.load(std::memory_order_relaxed)) {
+								lock.unlock();
 								return;
+							}
+							task = std::move(tasks_.front());
+							tasks_.pop_front();
 						}
-						tasks_.dequeue(task);  // queue should block when it's empty  
 						task();  // execute task.
 					}
 				}
