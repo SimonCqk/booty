@@ -3,7 +3,7 @@
 
 
 #include<queue>
-#include<shared_mutex>
+#include<mutex>
 #include<atomic>
 #include<condition_variable>
 
@@ -24,17 +24,17 @@ namespace booty {
 
 			/* enqueue one element(lvalue). */
 			void enqueue(const T& ele) {
-				std::lock_guard<std::shared_mutex> lock(queue_mtx_);
+				std::lock_guard<std::mutex> lock(queue_mtx_);
 				queue_.push(ele);
-				if (queue_.size() == 1) // queue is empty before push().
+				if (size() == 1) // queue is empty before push().
 					cond_.notify_one();
 			}
 
 			/* enqueue one element(rvalue). */
 			void enqueue(T&& ele) {
-				std::lock_guard<std::shared_mutex> lock(queue_mtx_);
+				std::lock_guard<std::mutex> lock(queue_mtx_);
 				queue_.emplace(std::move(ele));
-				if (queue_.size() == 1) // queue is empty before push().
+				if (size() == 1) // queue is empty before push().
 					cond_.notify_one();
 			}
 
@@ -45,8 +45,8 @@ namespace booty {
 			  as it mentioned above: block measures should be adopted by caller/invoker.
 			*/
 			void dequeue(T& recv) {
-				std::unique_lock<std::shared_mutex> lock(queue_mtx_);
-				if (queue_.empty()) {
+				std::unique_lock<std::mutex> lock(queue_mtx_);
+				if (empty()) {
 					cond_.wait(lock, [this] {
 						return !queue_.empty();
 					});
@@ -57,13 +57,11 @@ namespace booty {
 
 			/* get size of queue */
 			size_t size() const {
-				std::shared_lock<std::shared_mutex> lock(queue_mtx_);
 				return queue_.size();
 			}
 
 			/* judge if queue is empty */
 			bool empty() const {
-				std::shared_lock<std::shared_mutex> lock(queue_mtx_);
 				return queue_.empty();
 			}
 
@@ -73,7 +71,7 @@ namespace booty {
 
 		private:
 			std::queue<T> queue_;
-			std::shared_mutex queue_mtx_;
+			std::mutex queue_mtx_;
 			std::condition_variable cond_;
 		};
 	}

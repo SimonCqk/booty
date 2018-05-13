@@ -5,7 +5,6 @@
  *   personal considerations as components of booty.
  *
  * @Simoncqk - 2018.05.03
- *
  */
 #ifndef BOOTY_UNIT_H
 #define BOOTY_UNIT_H

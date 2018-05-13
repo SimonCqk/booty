@@ -13,6 +13,9 @@
 #include<atomic>
 #include<chrono>
 #include<new>
+#include<optional>
+
+#include"../sync/SaturatingSemaphore.hpp"
 
 namespace booty {
 
@@ -125,16 +128,101 @@ namespace booty {
 				Atom<Ticket> ticket;
 			};
 
+			class Entry {
+				sync::SaturatingSemaphore<MayBlock, Atom> flag_;
+				// strong memory-aligned guarantee.
+				typename std::aligned_storage<sizeof(T), alignof(T)>::type item_;
+
+			public:
+				template<typename Arg>
+				inline void putItem(Arg&& arg) {
+					// interesting usage of placement new. MARKABLE!
+					// construct a obj of type T at postion of &item_.
+					new (&item) T(std::forward<Arg>(arg));
+					flag_.post();
+				}
+
+				inline void takeItem(T& item) noexcept {
+					flag_.wait();
+					getItem(item);
+				}
+
+				inline std::optional<T> takeItem() noexcept {
+					flag_.wait();
+					return getItem();
+				}
+
+				template<typename Clock,typename Duration>
+				inline bool tryWaitUntil(
+					const std::chrono::time_point<Clock, Duration>& deadline) noexcept {
+					// wait-options from benchmarks on contended queues:
+					auto const opt =
+						flag_.wait_options().spin_max(std::chrono::microseconds(10));
+					return flag_.try_wait_until(deadline, opt);
+				}
+
+			private:
+				inline T* itemPtr() noexcept {
+					return static_cast<T*>(static_cast<void*>(&item_));
+				}
+
+				inline void destoryItem() noexcept {
+					// call destructor and destory obj at position of &item_.
+					// But memory doesn't release, it is to be multiplexed.
+					itemPtr()->~T();
+				}
+
+				inline void getItem(T& itme) noexcept{
+					item = std::move(*(itemPtr()));
+					destoryItem();
+				}
+
+				inline std::optional<T> getItem() noexcept {
+					std::optional<T> ret = std::move(*(itemPtr()));
+					destoryItem();
+					return ret;
+				}
+			};  // Entry
+
+			class Segment {
+				Atom<Segment*> next_;
+				const Ticket min_;
+				Atom<bool> marked_;  // used for iterative deletion
+				alignas(Align) Entry b_[SegmentSize];
+			public:
+				explicit Segment(const Ticket& t)
+					:next_(nullptr),min_(t),marked_(false){}
+
+				Segment* nextSegment() const noexcept {
+					return next_.load(std::memory_order_acquire);
+				}
+
+				void setNextSegment(Segment* s)noexcept {
+					next_.store(s, std::memory_order_release);
+				}
+
+				inline Ticket minTicket() const noexcept {
+					assert(min_&(SegmentSize - 1) == 0);
+					return min_;
+				}
+
+				inline Entry& entry(const size_t& index) noexcept {
+					return b_[index];
+				}
+
+				~Segment() {
+					if (!SPSC && !marked_.load(std::memory_order_relaxed)) {
+						Segment* next = nextSegment();
+						while (next) {
+
+						}
+					}
+				}
+			};  // Segment
 		};
 
 
-		class Entry {
-
-		};
-
-		class Segment {
-
-		};
+		
 	}
 
 }

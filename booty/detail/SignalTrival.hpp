@@ -38,6 +38,8 @@ namespace booty {
 			using Slot = std::function<void()>;  // functor after wrapped.
 
 		public:
+			SignalTrival() = default;
+
 			void connect(Functor&& func, Args&&... args) {
 				std::lock_guard<std::shared_mutex> lock{ smtx_ };
 				slots_.push_back(

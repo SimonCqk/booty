@@ -1,9 +1,12 @@
 #include<iostream>
-#include<functional>
+#include<type_traits>
 
 using namespace std;
 
 int main() {
-	cout <<std::hash<uint64_t>()(12345) << endl;
+	std::aligned_storage<sizeof(int), alignof(int)>::type item;
+	new (&item) int(1);
+	int* get = static_cast<int*>(static_cast<void*>(&item));
+	cout << *get << endl;
 	return 0;
 }
