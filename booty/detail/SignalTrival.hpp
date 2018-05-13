@@ -1,7 +1,7 @@
 /*
  * Sigle Signal with Multi-Functors relationship class impl.
  * Use it when you're intend to connect more than one functors with sigle signal.
- * It is thread-safe, guaranteed by std::shared_mutex. 
+ * It is thread-safe, guaranteed by std::shared_mutex.
  * @Simoncqk - 2018.05.08
  */
 #ifndef BOOTY_DETAIL_SIGNALTRIVAL_HPP
@@ -10,6 +10,8 @@
 #include <functional>
 #include <vector>
 #include<shared_mutex>
+
+#include"../Base.h"
 
 namespace booty {
 
@@ -23,7 +25,7 @@ namespace booty {
 		/// get, so use it with a call-back mechanism.
 		///
 		/// Use it like:
- 		/// - SignalTrival<void()> signal;
+		/// - SignalTrival<void()> signal;
 		///   signal.connect([](){ std::cout << "Hello Booty.\n"; });
 		///   ...
 		///   signal.call();
@@ -32,7 +34,7 @@ namespace booty {
 		///   ...
 		///   signal.call();
 		template <typename Return, typename... Args>
-		class SignalTrival<Return(Args...)> {
+		class SignalTrival<Return(Args...)> :public NonCopyable {
 
 			using Functor = std::function<Return(Args...)>;
 			using Slot = std::function<void()>;  // functor after wrapped.
@@ -58,8 +60,6 @@ namespace booty {
 				slots_.clear();
 			}
 
-			SignalTrival(const SignalTrival&) = delete;
-			SignalTrival& operator=(const SignalTrival&) = delete;
 		private:
 			mutable std::shared_mutex smtx_;
 			std::vector<Slot> slots_;

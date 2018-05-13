@@ -16,6 +16,7 @@
 #include<optional>
 
 #include"../sync/SaturatingSemaphore.hpp"
+#include"../Base.h"
 
 namespace booty {
 
@@ -100,7 +101,7 @@ namespace booty {
 		///   producer-consumer balance or favorable timing for avoiding
 		///   costly blocking.
 
-		template<typename T, bool SingleProducer, bool SingleConsumer,bool MayBlock,
+		template<typename T, bool SingleProducer, bool SingleConsumer, bool MayBlock,
 			size_t LogSegmentSize = 8, size_t LogAlign = std::log2(std::hardware_constructive_interference_size),
 			template<typename> class Atom = std::atomic>
 		class UnboundedQueue {
@@ -152,7 +153,7 @@ namespace booty {
 					return getItem();
 				}
 
-				template<typename Clock,typename Duration>
+				template<typename Clock, typename Duration>
 				inline bool tryWaitUntil(
 					const std::chrono::time_point<Clock, Duration>& deadline) noexcept {
 					// wait-options from benchmarks on contended queues:
@@ -172,7 +173,7 @@ namespace booty {
 					itemPtr()->~T();
 				}
 
-				inline void getItem(T& itme) noexcept{
+				inline void getItem(T& itme) noexcept {
 					item = std::move(*(itemPtr()));
 					destoryItem();
 				}
@@ -184,14 +185,14 @@ namespace booty {
 				}
 			};  // Entry
 
-			class Segment {
+			class Segment :public booty::hazptr_obj_base_refcounted {
 				Atom<Segment*> next_;
 				const Ticket min_;
 				Atom<bool> marked_;  // used for iterative deletion
 				alignas(Align) Entry b_[SegmentSize];
 			public:
 				explicit Segment(const Ticket& t)
-					:next_(nullptr),min_(t),marked_(false){}
+					:next_(nullptr), min_(t), marked_(false) {}
 
 				Segment* nextSegment() const noexcept {
 					return next_.load(std::memory_order_acquire);
@@ -214,7 +215,12 @@ namespace booty {
 					if (!SPSC && !marked_.load(std::memory_order_relaxed)) {
 						Segment* next = nextSegment();
 						while (next) {
-
+							if (!next->release_ref())  // hazptr
+								return;
+							Segment* s = next;
+							next = s->nextSegment();
+							s->marked_.store(true);
+							delete s; s = nullptr;
 						}
 					}
 				}
@@ -222,7 +228,7 @@ namespace booty {
 		};
 
 
-		
+
 	}
 
 }

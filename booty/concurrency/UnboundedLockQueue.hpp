@@ -7,7 +7,7 @@
 #include<atomic>
 #include<condition_variable>
 
-#include<iostream>
+#include"../Base.h"
 
 namespace booty {
 
@@ -18,7 +18,7 @@ namespace booty {
 		/// be adopted by caller/invoker.
 
 		template<typename T>
-		class UnboundedLockQueue {
+		class UnboundedLockQueue :public NonCopyable {
 		public:
 			UnboundedLockQueue() {}
 
@@ -64,10 +64,6 @@ namespace booty {
 			bool empty() const {
 				return queue_.empty();
 			}
-
-			/* forbid copy ctor and copy operator */
-			UnboundedLockQueue(const UnboundedLockQueue&) = delete;
-			UnboundedLockQueue& operator=(const UnboundedLockQueue&) = delete;
 
 		private:
 			std::queue<T> queue_;

@@ -13,6 +13,8 @@
 #include<mutex>
 #include<cassert>
 
+#include"../Base.h"
+
 namespace booty {
 
 	namespace detail {
@@ -120,7 +122,7 @@ namespace booty {
 	///   Slot object, or the connect will be invalid and no response when call() is
 	///   invoked.
 	template<typename Return, typename... Args>
-	class Signal<Return(Args...)> {
+	class Signal<Return(Args...)> :public NonCopyable {
 
 		using CallBack = std::function<Return(Args...)>;
 		using SignalImpl = detail::SignalImpl<CallBack>;
