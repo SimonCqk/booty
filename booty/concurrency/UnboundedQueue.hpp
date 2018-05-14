@@ -16,7 +16,7 @@
 #include<optional>
 
 #include"../sync/SaturatingSemaphore.hpp"
-#include"../Base.h"
+#include"HazardPtr.h"
 
 namespace booty {
 
@@ -128,6 +128,67 @@ namespace booty {
 				Atom<Segment*> tail;
 				Atom<Ticket> ticket;
 			};
+
+			alignas(Align) Consumer consumer_;
+			alignas(Align) Producer producer_;
+
+		public:
+
+		private:
+			inline Segment* head() const noexcept {
+				return consumer_.head.load(std::memory_order_acquire);
+			}
+
+			inline Segment* tail() const noexcept {
+				return producer_.tail.load(std::memory_order_acquire);
+			}
+
+			inline Ticket producerTicket() const noexcept {
+				return producer_.ticket.load(std::memory_order_acquire);
+			}
+
+			inline Ticket consumerTicket() const noexcept {
+				return consumer_.ticket.load(std::memory_order_acquire);
+			}
+
+			inline void setProducerTicket(Ticket t) noexcept {
+				producer_.ticket.store(t, std::memory_order_release);
+			}
+
+			inline void setConsumerTicket(Ticket t) noexcept {
+				consumer_.ticket.store(t, std::memory_order_release);
+			}
+
+			void setHead(Segment* s) noexcept {
+				consumer_.head.store(s, std::memory_order_release);
+			}
+
+			void setTail(Segment* s) noexcept {
+				producer_.tail.store(s, std::memory_order_release);
+			}
+
+			inline Ticket fetchIncrementConsumerTicket() noexcept {
+				if (SingleConsumer) {
+					// for a better performance, even just a little bit.
+					Ticket old_val = consumerTicket();
+					setConsumerTicket(old_val + 1);
+					return old_val;
+				}
+				else { // multi-consumer
+					return consumer_.ticket.fetch_add(1, std::memory_order_acq_rel);
+				}
+			}
+
+			inline Ticket fetchIncrementProducerTicket() noexcept {
+				if (SingleProducer) {
+					Ticket old_val = producerTicket();
+					setProducerTicket(old_val + 1);
+					return old_val;
+				}
+				else { // multi-producer
+					return producer_.ticket.fetch_add(1, std::memory_order_acq_rel);
+				}
+			}
 
 			class Entry {
 				sync::SaturatingSemaphore<MayBlock, Atom> flag_;
