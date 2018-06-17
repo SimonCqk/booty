@@ -20,9 +20,15 @@ namespace booty {
 
 	namespace concurrency {
 
+		static hazptr_domain default_domain_;
+
+		hazptr_domain& default_hazptr_domain() {
+			return default_domain_;
+		}
+
 		/// Hazard Pointer: every reading-thread maintain a hazard pointer for
 		/// single-writing & multi-reading. 
-		/// Effect: By iterating every hazard pointer, we can judge whether the 
+		/// Effection: By iterating every hazard pointer, we can judge whether the 
 		/// pointed content is being visited by reading threads or not, so to
 		/// determine is it safe to delete the memory hazard pointer points to.
 
@@ -47,13 +53,13 @@ namespace booty {
 		class hazptr_obj;
 		class hazptr_domain {
 			std::pmr::memory_resource* mr_;
-			std::atomic<hazptr_rec*> hazptrs_ = { nullptr };
-			std::atomic<hazptr_obj*> retired_ = { nullptr };
+			std::atomic<hazptr_rec*> hazptrs_{ nullptr };
+			std::atomic<hazptr_obj*> retired_{ nullptr };
 			/* Using signed int for rcount_ because it may transiently be
 			* negative.  Using signed int for all integer variables that may be
 			* involved in calculations related to the value of rcount_. */
-			std::atomic<int> hcount_ = { 0 };
-			std::atomic<int> rcount_ = { 0 };
+			std::atomic<int> hcount_{ 0 };
+			std::atomic<int> rcount_{ 0 };
 
 			static constexpr uint64_t syncTimePeriod_{ 2000000000 }; // in ns
 			std::atomic<uint64_t> syncTime_{ 0 };
@@ -63,6 +69,7 @@ namespace booty {
 				std::pmr::memory_resource* = std::pmr::get_default_resource()) noexcept;
 			~hazptr_domain();
 
+			// forbid copy-construct tool functions.
 			hazptr_domain(const hazptr_domain&) = delete;
 			hazptr_domain(hazptr_domain&&) = delete;
 			hazptr_domain& operator=(const hazptr_domain&) = delete;
@@ -98,7 +105,7 @@ namespace booty {
 			template<typename, typename>
 			friend class hazptr_obj_base_refcounted;
 
-			void(*reclaim_)(hazptr_obj*);  // func-ptr
+			std::function<void(hazptr_obj *)> relaim_;
 			hazptr_obj* next_;
 		public:
 			// All constructors set next_ to this in order to catch misuse bugs like
@@ -146,7 +153,7 @@ namespace booty {
 			/* Retire a removed object and pass the responsibility for
 			   reclaiming it to the hazptr library
 			 */
-			void retire();
+			void retire(hazptr_domain& domain = default_hazptr_domain(), D relaim = {});
 		private:
 			D deleter_;
 		};
@@ -182,7 +189,7 @@ namespace booty {
 
 
 		template<typename T, typename D>
-		inline void hazptr_domain::retire(T * obj, D reclaim){
+		inline void hazptr_domain::retire(T * obj, D reclaim) {
 
 		}
 
@@ -224,6 +231,23 @@ namespace booty {
 					hrobp->deleter_(obj);
 				}
 			};
+		}
+
+
+		template<typename T, typename D>
+		inline void hazptr_obj_base<T, D>::retire(hazptr_domain & domain,D deleter){
+			retireCheck();
+			deleter_ = std::move(deleter);
+			reclaim_ = [](hazptr_obj* p) {
+				auto hobp = static_cast<hazptr_obj_base*>(p);
+				auto obj = static_cast<T*>(hobp);
+				hobp->deleter_(obj);
+			};
+
+			if (&domain == &default_hazptr_domain()) {
+				// TODO!!!
+			}
+			domain.objRetire(this);
 		}
 
 } // namespace concurrency
