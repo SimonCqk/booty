@@ -11,6 +11,8 @@ namespace booty {
 
 	class TimeStamp {
 
+		// `long long int` is not always 64 bit which differs in different platforms.
+		// For uniting, define Time Type a 64 bit integer.
 		using TimeType = int64_t;
 
 	public:
@@ -44,6 +46,8 @@ namespace booty {
 			return static_cast<time_t>(microsecondsSinceEpoch_ / kMicrosecondsPerSecond);
 		}
 
+		// toString() provides simple formatted time presentation:
+		// e.g. 12.345678s
 		std::string toString() const {
 			char buff[32] = { 0 };
 			TimeType seconds = microsecondsSinceEpoch_ / kMicrosecondsPerSecond;
@@ -52,6 +56,11 @@ namespace booty {
 			return buff;
 		}
 
+		// toFormattedString() provides detailed formatted time presentation, and contains
+		// more information like year/month...arg `showMicroseconds` specify to show microseconds
+		// in decimal point or not:
+		// e.g. showMicroseconds = true: 2018-06-25 22:25:30.123456
+		//      showMicroseconds = false: 2018-06-25 22:25:30
 		std::string toFormattedString(bool showMicroseconds = true) const {
 			using namespace std::chrono;
 			char buff[64] = { 0 };
@@ -59,12 +68,12 @@ namespace booty {
 			std::tm tm_time = (*std::localtime(&now));
 			if (showMicroseconds) {
 				int microseconds = static_cast<int>(microsecondsSinceEpoch_%kMicrosecondsPerSecond);
-				snprintf(buff, sizeof(buff), "%4d%02d%02d %02d:%02d:%02d.%06d",
+				snprintf(buff, sizeof(buff), "%4d-%02d-%02d %02d:%02d:%02d.%06d",
 					tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday, tm_time.tm_hour,
 					tm_time.tm_min, tm_time.tm_sec, microseconds);
 			}
 			else {
-				snprintf(buff, sizeof(buff), "%4d%02d%02d %02d:%02d:%02d",
+				snprintf(buff, sizeof(buff), "%4d-%02d-%02d %02d:%02d:%02d",
 					tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday,
 					tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec);
 			}
@@ -75,6 +84,7 @@ namespace booty {
 		TimeType microsecondsSinceEpoch_;
 	};
 
+	// Define some comparation-operators.
 	inline bool operator < (const TimeStamp& lhs, const TimeStamp& rhs) {
 		return lhs.microsecondsSinceEpoch() < rhs.microsecondsSinceEpoch();
 	}
@@ -99,11 +109,14 @@ namespace booty {
 		return lhs.microsecondsSinceEpoch() != rhs.microsecondsSinceEpoch();
 	}
 
+	// Some utility functions defined.
+	// Time difference between two timestamps, return by double.
 	inline double TimeDifference(const TimeStamp& former, const TimeStamp& later) {
 		auto diff = former.microsecondsSinceEpoch() - later.microsecondsSinceEpoch();
 		return static_cast<double>(diff) / TimeStamp::kMicrosecondsPerSecond;
 	}
-
+	// Add more time to original timestamp, return a new TimeStamp and do not
+	// modify original one.
 	inline TimeStamp AddTime(const TimeStamp& ts, double seconds) {
 		int64_t delta = static_cast<int64_t>(seconds*TimeStamp::kMicrosecondsPerSecond);
 		return TimeStamp(ts.microsecondsSinceEpoch() + delta);
