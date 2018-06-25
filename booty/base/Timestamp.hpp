@@ -3,6 +3,7 @@
 
 #include<chrono>
 #include<string>
+#include<ctime>
 
 using namespace std::chrono;
 
@@ -48,6 +49,25 @@ namespace booty {
 			TimeType seconds = microsecondsSinceEpoch_ / kMicrosecondsPerSecond;
 			TimeType microseconds = microsecondsSinceEpoch_ % kMicrosecondsPerSecond;
 			std::snprintf(buff, sizeof(buff) - 1, "%lld.%06lld", seconds, microseconds);
+			return buff;
+		}
+
+		std::string toFormattedString(bool showMicroseconds = true) const {
+			using namespace std::chrono;
+			char buff[64] = { 0 };
+			std::time_t now = system_clock::to_time_t(system_clock::now());
+			std::tm tm_time = (*std::localtime(&now));
+			if (showMicroseconds) {
+				int microseconds = static_cast<int>(microsecondsSinceEpoch_%kMicrosecondsPerSecond);
+				snprintf(buff, sizeof(buff), "%4d%02d%02d %02d:%02d:%02d.%06d",
+					tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday, tm_time.tm_hour,
+					tm_time.tm_min, tm_time.tm_sec, microseconds);
+			}
+			else {
+				snprintf(buff, sizeof(buff), "%4d%02d%02d %02d:%02d:%02d",
+					tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday,
+					tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec);
+			}
 			return buff;
 		}
 
