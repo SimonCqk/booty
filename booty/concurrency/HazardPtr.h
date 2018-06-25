@@ -20,12 +20,6 @@ namespace booty {
 
 	namespace concurrency {
 
-		static hazptr_domain default_domain_;
-
-		hazptr_domain& default_hazptr_domain() {
-			return default_domain_;
-		}
-
 		/// Hazard Pointer: every reading-thread maintain a hazard pointer for
 		/// single-writing & multi-reading. 
 		/// Effection: By iterating every hazard pointer, we can judge whether the 
@@ -98,6 +92,12 @@ namespace booty {
 			void bulkReclaim();
 		};
 
+		static hazptr_domain default_domain_;
+
+		hazptr_domain& default_hazptr_domain() {
+			return default_domain_;
+		}
+
 		/* hazptr_obj: Private class for objects protected by hazard pointers. */
 		class hazptr_obj {
 			template<typename, typename>
@@ -131,7 +131,7 @@ namespace booty {
 			}
 
 			void retireCheckFail() {
-				assert(next_, this);
+				assert(next_== this);
 			}
 
 			void retireCheck() {

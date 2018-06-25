@@ -2,6 +2,7 @@
 #define BOOTY_BASE_TIMESTAMP_H
 
 #include<chrono>
+#include<string>
 
 using namespace std::chrono;
 
@@ -21,9 +22,9 @@ namespace booty {
 		explicit TimeStamp(TimeType timesince)
 			:microsecondsSinceEpoch_(timesince) {}
 
+		// default duration unit is `microseconds` so we don't have to do timepoint cast.
 		static TimeStamp now() {
-			// TODO: 
-			return TimeStamp();
+			return TimeStamp(std::chrono::system_clock::now().time_since_epoch().count());
 		}
 
 		static TimeStamp fromUnixTime(time_t t) {
@@ -40,6 +41,14 @@ namespace booty {
 
 		time_t secondsSinceEpoch() const {
 			return static_cast<time_t>(microsecondsSinceEpoch_ / kMicrosecondsPerSecond);
+		}
+
+		std::string toString() const {
+			char buff[32] = { 0 };
+			TimeType seconds = microsecondsSinceEpoch_ / kMicrosecondsPerSecond;
+			TimeType microseconds = microsecondsSinceEpoch_ % kMicrosecondsPerSecond;
+			std::snprintf(buff, sizeof(buff) - 1, "%lld.%06lld", seconds, microseconds);
+			return buff;
 		}
 
 	private:

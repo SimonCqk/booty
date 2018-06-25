@@ -246,7 +246,7 @@ namespace booty {
 				}
 			};  // Entry
 
-			class Segment :public booty::hazptr_obj_base_refcounted {
+			class Segment :public booty::concurrency::hazptr_obj_base_refcounted<T> {
 				Atom<Segment*> next_;
 				const Ticket min_;
 				Atom<bool> marked_;  // used for iterative deletion
