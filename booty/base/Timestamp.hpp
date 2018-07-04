@@ -9,7 +9,7 @@ using namespace std::chrono;
 
 namespace booty {
 
-	class TimeStamp {
+	class Timestamp {
 
 		// `long long int` is not always 64 bit which differs in different platforms.
 		// For uniting, define Time Type a 64 bit integer.
@@ -19,22 +19,22 @@ namespace booty {
 
 		constexpr static int kMicrosecondsPerSecond = 1000 * 1000;
 
-		TimeStamp()
+		Timestamp()
 			:microsecondsSinceEpoch_(0) {}
 
-		explicit TimeStamp(TimeType timesince)
+		explicit Timestamp(TimeType timesince)
 			:microsecondsSinceEpoch_(timesince) {}
 
 		// default duration unit is `microseconds` so we don't have to do timepoint cast.
-		static TimeStamp now() {
-			return TimeStamp(std::chrono::system_clock::now().time_since_epoch().count());
+		static Timestamp now() {
+			return Timestamp(std::chrono::system_clock::now().time_since_epoch().count());
 		}
 
-		static TimeStamp fromUnixTime(time_t t) {
-			return TimeStamp(static_cast<TimeType>(t)*kMicrosecondsPerSecond);
+		static Timestamp fromUnixTime(time_t t) {
+			return Timestamp(static_cast<TimeType>(t)*kMicrosecondsPerSecond);
 		}
 
-		void swap(TimeStamp& ts) {
+		void swap(Timestamp& ts) {
 			std::swap(microsecondsSinceEpoch_, ts.microsecondsSinceEpoch_);
 		}
 
@@ -85,41 +85,41 @@ namespace booty {
 	};
 
 	// Define some comparation-operators.
-	inline bool operator < (const TimeStamp& lhs, const TimeStamp& rhs) {
+	inline bool operator < (const Timestamp& lhs, const Timestamp& rhs) {
 		return lhs.microsecondsSinceEpoch() < rhs.microsecondsSinceEpoch();
 	}
 
-	inline bool operator > (const TimeStamp& lhs, const TimeStamp& rhs) {
+	inline bool operator > (const Timestamp& lhs, const Timestamp& rhs) {
 		return lhs.microsecondsSinceEpoch() > rhs.microsecondsSinceEpoch();
 	}
 
-	inline bool operator <= (const TimeStamp& lhs, const TimeStamp& rhs) {
+	inline bool operator <= (const Timestamp& lhs, const Timestamp& rhs) {
 		return lhs.microsecondsSinceEpoch() <= rhs.microsecondsSinceEpoch();
 	}
 
-	inline bool operator >= (const TimeStamp& lhs, const TimeStamp& rhs) {
+	inline bool operator >= (const Timestamp& lhs, const Timestamp& rhs) {
 		return lhs.microsecondsSinceEpoch() >= rhs.microsecondsSinceEpoch();
 	}
 
-	inline bool operator == (const TimeStamp& lhs, const TimeStamp& rhs) {
+	inline bool operator == (const Timestamp& lhs, const Timestamp& rhs) {
 		return lhs.microsecondsSinceEpoch() == rhs.microsecondsSinceEpoch();
 	}
 
-	inline bool operator != (const TimeStamp& lhs, const TimeStamp& rhs) {
+	inline bool operator != (const Timestamp& lhs, const Timestamp& rhs) {
 		return lhs.microsecondsSinceEpoch() != rhs.microsecondsSinceEpoch();
 	}
 
 	// Some utility functions defined.
 	// Time difference between two timestamps, return by double.
-	inline double TimeDifference(const TimeStamp& former, const TimeStamp& later) {
+	inline double TimeDifference(const Timestamp& former, const Timestamp& later) {
 		auto diff = former.microsecondsSinceEpoch() - later.microsecondsSinceEpoch();
-		return static_cast<double>(diff) / TimeStamp::kMicrosecondsPerSecond;
+		return static_cast<double>(diff) / Timestamp::kMicrosecondsPerSecond;
 	}
 	// Add more time to original timestamp, return a new TimeStamp and do not
 	// modify original one.
-	inline TimeStamp AddTime(const TimeStamp& ts, double seconds) {
-		int64_t delta = static_cast<int64_t>(seconds*TimeStamp::kMicrosecondsPerSecond);
-		return TimeStamp(ts.microsecondsSinceEpoch() + delta);
+	inline Timestamp AddTime(const Timestamp& ts, double seconds) {
+		int64_t delta = static_cast<int64_t>(seconds*Timestamp::kMicrosecondsPerSecond);
+		return Timestamp(ts.microsecondsSinceEpoch() + delta);
 	}
 
 }
