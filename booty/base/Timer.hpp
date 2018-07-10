@@ -9,15 +9,27 @@ namespace booty {
 
 	using Callback = std::function<void()>;
 
+	/// A clean and clear timer impl, this is not a timer call interruption automatically,
+	/// but users control the initiative to judge whether it's expired or not, by invoking
+	/// interfaces, and events(callbacks) should be registered.
 	class Timer {
 	public:
 
 		Timer(const Callback& cb, const Timestamp& when, double interval)
-			:callback_(cb), expiration_(when), interval_(interval), repeat_(interval > 0.0), sequence_(numCreated_.fetch_add(1)) {}
+			:callback_(cb),
+			expiration_(when),
+			interval_(interval),
+			repeat_(interval > 0.0),
+			sequence_(numCreated_.fetch_add(1)) {}
 
 		Timer(Callback&& cb, const Timestamp& when, double interval)
-			:callback_(std::move(cb)), expiration_(when), interval_(interval), repeat_(interval > 0.0), sequence_(numCreated_.fetch_add(1)) {}
+			:callback_(std::move(cb)),
+			expiration_(when),
+			interval_(interval),
+			repeat_(interval > 0.0),
+			sequence_(numCreated_.fetch_add(1)) {}
 
+		// run the registered event, driven by this timer.
 		void run() const {
 			callback_();
 		}
@@ -26,16 +38,27 @@ namespace booty {
 			return expiration_;
 		}
 
+		bool expired() const {
+			return expiration_ > Timestamp::now();
+		}
+
 		bool repeat() const {
 			return repeat_;
 		}
 
+		// sequence number of this timer
 		long sequence() const {
 			return sequence_;
 		}
 
+		// reset the expiration timestamp of this timer
 		void restart(Timestamp now) {
-			// TODO.
+			if (repeat_) {
+				expiration_ = AddTime(now, interval_);
+			}
+			else {
+				expiration_ = Timestamp();
+			}
 		}
 
 		static long numCreated() {
