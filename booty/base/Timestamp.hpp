@@ -20,7 +20,7 @@ namespace booty {
 		constexpr static int kMicrosecondsPerSecond = 1000 * 1000;
 
 		Timestamp()
-			:microsecondsSinceEpoch_(0) {}
+			:microsecondsSinceEpoch_(std::chrono::system_clock::now().time_since_epoch().count()) {}
 
 		explicit Timestamp(TimeType timesince)
 			:microsecondsSinceEpoch_(timesince) {}
