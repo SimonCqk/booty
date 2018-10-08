@@ -1,12 +1,15 @@
-#include<iostream>
-#include<type_traits>
+#include <iostream>
+#include "../booty/utils/Strings.hpp"
 
 using namespace std;
 
 int main() {
-	std::aligned_storage<sizeof(int), alignof(int)>::type item;
-	new (&item) int(1);
-	int* get = static_cast<int*>(static_cast<void*>(&item));
-	cout << *get << endl;
-	return 0;
+    string s = "sdf23\nad12\nad2\n\n\nasd\n";
+    cout << "start" << endl;
+    auto res = booty::Split(s);
+    for (auto each : res) {
+        cout << each << ' ';
+    }
+    cout << "\nfinish" << endl;
+    return 0;
 }
