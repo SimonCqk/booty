@@ -14,7 +14,6 @@ namespace booty {
 		// For uniting, define Time Type a 64 bit integer.
 		using TimeType = int64_t;
 		using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
-		using
 
 	public:
 
@@ -44,15 +43,15 @@ namespace booty {
 		}
 
 		time_t secondsSinceEpoch() const {
-			return static_cast<time_t>(microsecondsSinceEpoch_ / kMicrosecondsPerSecond);
+			return static_cast<time_t>(epochTimePoint_.time_since_epoch().count() / kMicrosecondsPerSecond);
 		}
 
 		// toString() provides simple formatted time presentation:
 		// e.g. 12.345678s
 		std::string toString() const {
 			char buff[32] = { 0 };
-			TimeType seconds = microsecondsSinceEpoch_ / kMicrosecondsPerSecond;
-			TimeType microseconds = microsecondsSinceEpoch_ % kMicrosecondsPerSecond;
+			TimeType seconds = epochTimePoint_.time_since_epoch().count() / kMicrosecondsPerSecond;
+			TimeType microseconds = epochTimePoint_.time_since_epoch().count() % kMicrosecondsPerSecond;
 			std::snprintf(buff, sizeof(buff) - 1, "%lld.%06lld", seconds, microseconds);
 			return buff;
 		}
@@ -68,7 +67,7 @@ namespace booty {
 			std::time_t now = system_clock::to_time_t(system_clock::now());
 			std::tm tm_time = (*std::localtime(&now));
 			if (showMicroseconds) {
-				int microseconds = static_cast<int>(microsecondsSinceEpoch_%kMicrosecondsPerSecond);
+				int microseconds = static_cast<int>(epochTimePoint_.time_since_epoch().count() %kMicrosecondsPerSecond);
 				snprintf(buff, sizeof(buff), "%4d-%02d-%02d %02d:%02d:%02d.%06d",
 					tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday, tm_time.tm_hour,
 					tm_time.tm_min, tm_time.tm_sec, microseconds);
