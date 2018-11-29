@@ -22,6 +22,8 @@ class SlideWindow {
 
     // add push a new element into slide window, and return the results.
     bool add(T&& ele) {
+        if (full()) return false;
+        
         std::unique_lock<std::shared_mutex> lock(mutex_);
         size_t next = startIdx_ + count_;
         // next may rotate
