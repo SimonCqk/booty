@@ -23,9 +23,11 @@ class SlideWindow {
     // add push a new element into slide window, and return the results.
     bool add(T&& ele) {
         if (full()) return false;
-        
-        std::unique_lock<std::shared_mutex> lock(mutex_);
-        size_t next = startIdx_ + count_;
+        size_t next;
+        {
+            std::shared_lock<std::shared_mutex> lock(mutex_);
+            next = startIdx_ + count_;
+        }
         // next may rotate
         if (next >= sizeLimit_) next -= sizeLimit_;
 
@@ -35,10 +37,13 @@ class SlideWindow {
             if (buff_[prior] >= buff_[next]) return false;
         }
 
-        // grow
-        if (next >= buff_.size()) growBuff();
-        buff_[next] = std::forward(ele);
-        count_++;
+        {
+            std::unique_lock<std::shared_mutex> lock(mutex_);
+            // grow
+            if (next >= buff_.size()) growBuff();
+            buff_[next] = std::forward(ele);
+            count_++;
+        }
     }
 
     // free the space out-bound of index...start+count
