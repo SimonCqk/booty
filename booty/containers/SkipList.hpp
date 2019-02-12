@@ -1,9 +1,11 @@
 #ifndef BOOTY_CONTAINERS_SKIPLIST_HPP
 #define BOOTY_CONTAINERS_SKIPLIST_HPP
 
-#include <memory>
+#include<cassert>
+#include<memory>
 #include<atomic>
 #include<functional>
+#include"../detail/Memory.hpp"
 
 namespace booty {
 
@@ -12,12 +14,13 @@ namespace booty {
 		template <
 			typename Key,
 			class Comparator = std::less<typename Key>,
+			class NodeAllocator = detail::SysAllocator<Key>,
 			int kMaxHeight = 16,
 			int kBranching = 8
 		>
 			class SkipList {
 
-			static_assert(kMaxHeight >= 16 && kMaxHeight < 64, "kMaxHeight must be in range if [16, 64)");
+			static_assert(kMaxHeight >= 16 && kMaxHeight < 64, "kMaxHeight must be in range of [16, 64)");
 			static_assert(kMaxHeight & 0x01 == 0, "kMaxHeight must be power of 2");
 
 			struct Node;
@@ -57,14 +60,11 @@ namespace booty {
 				SkipList& operator=(const SkipList&) = delete;
 
 			private:
-				std::shared_ptr<Node> head_;
-				std::atomic<int> maxHeight_;
 
 				inline int getMaxHeight() const {
 					return maxHeight_.load(std::memory_order_acquire);
 				}
 
-				std::shared_ptr<Node> newNode(const Key& key, int height);
 				int randomHeight();
 
 				inline bool isEqual(const Key& lhs, const Key& rhs) const {
@@ -75,12 +75,51 @@ namespace booty {
 					const std::shared_ptr<Node>& node) const;
 
 				std::shared_ptr<Node> findGreaterOrEqual(
-					const Key& key, const std::shared_ptr<Node*>& prev) const;
+					const Key& key, Node** prev) const;
 
 				std::shared_ptr<Node> findLessThan(const Key& key) const;
 
 				std::shared_ptr<Node> findLast() const;
+
+				std::shared_ptr<Node> head_;
+				std::atomic<int> maxHeight_;
+				const NodeAllocator allocator_;
 		};
+
+		template <
+			typename Key,
+			class Comparator = std::less<typename Key>,
+			class NodeAllocator = detail::SysAllocator<Key>,
+			int kMaxHeight = 16,
+			int kBranching = 8
+		>
+			struct SkipList<Key, Comparator, NodeAllocator, kMaxHeight, kBranching>::Node {
+
+			explicit Node(const Key& key)
+				:key_(key) {}
+
+			static std::shared_ptr<Node> NewNode(const Key& key, int height) {
+				assert(height >= 1 && height < kMaxHeight);
+				size_t size = sizeof(Node) + height * sizeof(std::atomic<Node*>);
+				auto storage = std::allocator_traits<NodeAllocator>::allocate(allocator_, size);
+				// do placement new
+				return std::make_shared(new (storage) Node(key));
+			}
+
+			const Key key_;
+
+			Nood* Next(int n) {
+				next_[n].load(std::memory_order_acquire);
+			}
+
+			void SetNext(int n, Node* node) {
+				next_[n].store(node, std::memory_order_release);
+			}
+
+			private:
+				std::array<std::atomic<Node*>, kMaxHeight> next_;
+		};
+
 	}  // namespace containers
 
 }  // namespace booty
