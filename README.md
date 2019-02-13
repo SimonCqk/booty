@@ -13,12 +13,17 @@
 
 - **TimeStamp**: simple enough but also effective time stamp impl.
 
+- **Strings**: provide utility functions enhance for std::string.
+
 - **Unbounded Lock Queue**: simple concurrent queue with `std::queue + lock`.
 
 - **Futex**: (Fast Userspace muTEXes), a high-level encapsulation of mutex, exists not only in kernel space but also user space, so it can be alive for a long time and perform better than `mutex`.
 
 - **Saturing Semaphore**: Saturating Semaphore is a flag that allows concurrent posting by multiple posters and concurrent non-destructive waiting by multiple waiters.
 
+### Updating:
+
+- **Graph**: a generic graph library, including graph data structures and algorithms.
 
 ### Under Working
 
