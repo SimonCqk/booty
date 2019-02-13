@@ -45,10 +45,9 @@ namespace booty {
 		// for a graph structure, it is the main entry for graph lib.
 		template<typename IdType = int>
 		class GraphInterface {
-
+		public:
 			using NodeMap = std::unordered_map<IdType, NodeInterface<IdType>>;
 
-		public:
 			// total number of nodes.
 			int NodeCounts() = 0;
 			// get node by the given id.
@@ -107,6 +106,12 @@ namespace booty {
 			NodeInterface<IdType> src;
 			NodeInterface<IdType> tgt;
 			double weight;
+		};
+
+		// Default graph edge implementation.
+		template<typename IdType=int>
+		class Graph {
+
 		};
 
 	} // namespace graph
